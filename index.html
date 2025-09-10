@@ -3,60 +3,73 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
-  <title>Neon Conquest — build mobile</title>
+  <title>Neon Conquest — Mobile (Portrait)</title>
   <style>
-    /* Nascondi eventuale pulsante "Entrate" (richiesta precedente) */
-    #upInc { display:none !important; }
-
-    :root { --accent:#00e5ff; --text:#eaf8ff; }
+    :root{
+      --accent:#00e5ff; --text:#eaf8ff;
+      --uiScale:1;                     /* aggiornato da JS in base al canvas */
+      --barH:78px;                     /* altezza stimata della dock (fix da JS) */
+      --fs:calc(14px*var(--uiScale));  /* font size base per i bottoni */
+    }
     *{ box-sizing:border-box }
-    html,body{ height:100% }
+    html,body{ height:100dvh }
     body{
       margin:0; color:var(--text);
       font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Cantarell,Noto Sans,Arial;
-      display:flex; flex-direction:column; gap:8px;
-      background:#0a1224;
+      background:#0a1224; display:flex; flex-direction:column;
     }
 
+    /* HEADER COMPATTO */
     header{
-      display:flex; align-items:center; gap:12px; flex-wrap:wrap;
-      padding:10px clamp(10px,2vw,20px);
-      background:rgba(10,18,36,.55); backdrop-filter:saturate(130%) blur(2px);
-      border-bottom:1px solid rgba(255,255,255,.08)
+      position:sticky; top:0; z-index:20;
+      display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+      padding:8px 10px;
+      background:rgba(10,18,36,.6); backdrop-filter:saturate(130%) blur(2px);
+      border-bottom:1px solid rgba(255,255,255,.08);
+      font-size:clamp(12px,1.9vw,14px);
     }
-    .brand{ font-weight:800; letter-spacing:.3px }
+    .brand{ font-weight:800; letter-spacing:.2px }
     .brand span{ color:var(--accent) }
-    .stat{ margin-left:auto; display:flex; gap:14px; font-weight:600; flex-wrap:wrap }
+    .stat{ margin-left:auto; display:flex; gap:12px; font-weight:600; flex-wrap:wrap }
     .stat b{ color:var(--accent) }
+    @media (orientation:portrait){
+      header .stat div:nth-child(3),
+      header .stat div:nth-child(4){ display:none }
+    }
 
-    /* Barra comandi (compatta in mobile, orizzontale scrollabile) */
-    .bar{ position:relative; display:flex; gap:8px; align-items:center; padding:8px 10px 12px 10px; flex-wrap:wrap }
+    /* AREA DI GIOCO (calcolata da JS per non finire sotto la dock) */
+    #gameWrap{ position:relative; flex:1; min-height:0; }
+    /* Il canvas è ridimensionato da JS (width/height) */
+    canvas{ position:absolute; inset:0; background:transparent; touch-action:none; }
+    canvas.aim{ cursor:crosshair }
+
+    /* DOCK INFERIORE: UNA SOLA RIGA SCORREVOLE */
+    .bar{
+      position:fixed; left:0; right:0; bottom:0; z-index:40;
+      padding:6px 8px calc(env(safe-area-inset-bottom,0px) + 6px);
+      display:flex; align-items:center; gap:8px;
+      overflow-x:auto; -webkit-overflow-scrolling:touch;
+      background:linear-gradient(180deg, rgba(10,18,36,0), rgba(10,18,36,.88));
+      border-top:1px solid rgba(255,255,255,.08);
+    }
+    .bar::-webkit-scrollbar{ display:none }
     .bar button{
       background:rgba(12,24,48,.72); color:var(--text);
       border:1px solid rgba(255,255,255,.12); border-radius:12px;
-      padding:9px 12px; cursor:pointer; font-weight:700; letter-spacing:.2px;
+      padding:calc(7px*var(--uiScale)) calc(10px*var(--uiScale));
+      font-size:var(--fs); font-weight:800; letter-spacing:.2px; white-space:nowrap;
       box-shadow:inset 0 0 18px rgba(0,229,255,.10), 0 0 8px rgba(0,229,255,.18);
       transition:transform .05s ease, box-shadow .2s ease
     }
     .bar button:active{ transform:translateY(1px) }
-    .sep{ opacity:.7 }
 
-    /* In portrait la bar diventa scorrevole e più piccola */
-    @media (orientation: portrait) {
-      .bar{ flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px) }
-      .bar::-webkit-scrollbar{ display:none }
-      .bar button{ padding:10px 12px; font-size:14px; white-space:nowrap }
-      header .stat div:nth-child(3),
-      header .stat div:nth-child(5){ display:none } /* nasconde alcune info per schermi piccoli */
-    }
-
-    /* Menu a comparsa */
+    /* MENU POPUP */
     #upMenu, #spellMenu, #mineMenu{
-      position:absolute; min-width:320px; display:none; z-index:50;
+      position:fixed; display:none; z-index:60;
       background:rgba(14,28,60,.96);
       border:1px solid rgba(255,255,255,.12); border-radius:12px;
       box-shadow:0 12px 40px rgba(0,0,0,.5); padding:8px;
-      max-width:min(92vw, 440px);
+      max-width:min(92vw, 440px); min-width:300px;
     }
     #upMenu .item, #spellMenu .item, #mineMenu .item{
       width:100%; text-align:left; margin:4px 0; padding:10px 12px;
@@ -64,15 +77,11 @@
       border-radius:10px; cursor:pointer; font-weight:800; line-height:1.25;
     }
     #upMenu .sub, #spellMenu .sub, #mineMenu .sub{
-      display:block; font-size:.85rem; opacity:.85; font-weight:600; margin-top:2px
+      display:block; font-size:.85rem; opacity:.85; font-weight:600; margin-top:2px;
     }
     #spellMenu .item[aria-disabled="true"]{ opacity:.45; filter:grayscale(30%); pointer-events:none; font-weight:700 }
 
-    #gameWrap{ position:relative; flex:1; margin:0 }
-    canvas{ position:absolute; inset:0; width:100%; height:100%; background:transparent; touch-action:none; }
-    canvas.aim{ cursor:crosshair; }
-
-    /* Overlay fine partita */
+    /* OVERLAY FINE PARTITA */
     #overlay{
       position:absolute; inset:0; display:none; align-items:center; justify-content:center;
       backdrop-filter:blur(3px);
@@ -83,9 +92,9 @@
       border-radius:18px; padding:22px; text-align:center; box-shadow:0 15px 60px rgba(0,0,0,.6)
     }
 
-    /* Intro livello */
+    /* INTRO LIVELLO */
     #levelIntro{
-      position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:60;
+      position:absolute; inset:0; display:none; align-items:center; justify-content:center; z-index:50;
       background:
         radial-gradient(1200px 500px at 50% 30%, rgba(0,229,255,.10), rgba(0,0,0,.65)),
         linear-gradient(180deg, rgba(0,229,255,.06), rgba(0,0,0,.65));
@@ -108,13 +117,11 @@
       text-shadow:0 0 28px rgba(0,229,255,.55);
       filter: drop-shadow(0 10px 40px rgba(0,0,0,.6));
     }
-    #levelIntro p{ margin:.4rem 0 0 0; opacity:.9; font-weight:700; }
-
-    footer{ padding:0; margin:0; height:0; overflow:hidden }
+    #levelIntro p{ margin:.4rem 0 0 0; opacity:.9; font-weight:700 }
   </style>
 </head>
 <body>
-  <header>
+  <header id="hdr">
     <div class="brand">🏰 <span>Neon</span> Conquest — mobile</div>
     <div class="stat">
       <div>⚡ Energia: <b id="energyP">0</b></div>
@@ -124,38 +131,6 @@
       <div>📈 Livello: <b id="lvlLbl">1</b></div>
     </div>
   </header>
-
-  <!-- Barra comandi compatta -->
-  <div class="bar" id="bar">
-    <button id="spawnWarrior">🗡️ Guerriero (50)</button>
-    <button id="spawnCrossbow">🏹 Balestriere (80)</button>
-    <button id="spawnGolem">🗿 Golem (120)</button>
-    <button id="spawnWizard">🧙‍♂️ Mago (400)</button>
-    <button id="spawnBabyWizard">🧙‍♂️✨ Baby Mago Blu (700)</button>
-    <span class="sep">|</span>
-
-    <button id="btnUpgrades">🛠️ Potenziamenti</button>
-    <span class="sep">|</span>
-
-    <button id="btnSpells">✨ Incantesimi</button>
-    <span class="sep">|</span>
-
-    <button id="placeMine">⛏️ Miniera (—)</button>
-    <button id="btnMines">📦 Miniere</button>
-    <span class="sep">|</span>
-
-    <button id="toggleSpeed">⚡ 2x</button>
-    <button id="togglePause">⏯️ Pausa</button>
-    <span class="sep">|</span>
-    <button id="nextLvl">▶️ Prossima Ondata</button>
-
-    <!-- Menu potenziamenti -->
-    <div id="upMenu" role="menu" aria-hidden="true"></div>
-    <!-- Menu incantesimi -->
-    <div id="spellMenu" role="menu" aria-hidden="true"></div>
-    <!-- Menu Miniere -->
-    <div id="mineMenu" role="menu" aria-hidden="true"></div>
-  </div>
 
   <main id="gameWrap">
     <canvas id="game"></canvas>
@@ -181,382 +156,203 @@
       </div>
     </div>
   </main>
-  <footer></footer>
 
-  <!-- =========================  SCRIPT COMPLETO  ========================= -->
+  <!-- DOCK INFERIORE -->
+  <div class="bar" id="bar">
+    <button id="spawnWarrior">🗡️ Guerriero (50)</button>
+    <button id="spawnCrossbow">🏹 Balestriere (80)</button>
+    <button id="spawnGolem">🗿 Golem (120)</button>
+    <button id="spawnWizard">🧙‍♂️ Mago (400)</button>
+    <button id="spawnBabyWizard">🧙‍♂️✨ Baby Mago Blu (700)</button>
+
+    <button id="btnUpgrades">🛠️ Potenziamenti</button>
+    <button id="btnSpells">✨ Incantesimi</button>
+
+    <button id="placeMine">⛏️ Miniera (—)</button>
+    <button id="btnMines">📦 Miniere</button>
+
+    <button id="toggleSpeed">⚡ 2x</button>
+    <button id="togglePause">⏯️ Pausa</button>
+    <button id="nextLvl">▶️ Prossima Ondata</button>
+
+    <!-- Menù -->
+    <div id="upMenu" role="menu" aria-hidden="true"></div>
+    <div id="spellMenu" role="menu" aria-hidden="true"></div>
+    <div id="mineMenu" role="menu" aria-hidden="true"></div>
+  </div>
+
   <script>
-  window.addEventListener('DOMContentLoaded', () => {
+  (function(){
   'use strict';
 
-  /* ===== Helpers DOM sicuri ===== */
+  /* ===== Helpers ===== */
   const $ = (id) => document.getElementById(id);
   const on = (el, ev, fn, opts) => el && el.addEventListener(ev, fn, opts);
-  const exist = (...ids) => ids.every(id => $(id));
+  const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+  const rnd=(a,b)=>Math.random()*(b-a)+a;
 
-  function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
-  function rnd(a,b){ return Math.random()*(b-a)+a; }
+  /* ===== Canvas & layout ===== */
+  const canvas=$('game'); const ctx=canvas.getContext('2d');
+  const wrap=$('gameWrap'); const hdr=$('hdr'); const barEl=$('bar');
+  const HP_GREEN='#20ffa8';
+  const groundY=()=> canvas.height - 90;
 
-  /* ===== Canvas ===== */
-  const canvas = $('game');
-  if(!canvas){ console.error('Canvas #game mancante'); return; }
-  const ctx = canvas.getContext('2d');
-  const wrap = $('gameWrap');
-  function groundY(){ return canvas.height - 90; }
-  const HP_GREEN = '#20ffa8';
-
-  /* ===== Modalità compatta (mobile) ===== */
-  let COMPACT = false;
-  function setCompactFlag(){
-    const w = wrap?.clientWidth || window.innerWidth;
-    const h = wrap?.clientHeight || window.innerHeight;
-    COMPACT = (w < h) || (w < 620);
+  function setBarVars(){
+    const barH = barEl ? barEl.getBoundingClientRect().height : 78;
+    document.documentElement.style.setProperty('--barH', barH+'px');
   }
-  function label(elId, fullTxt, shortTxt){
-    const el = $(elId); if(!el) return;
-    el.textContent = COMPACT ? (shortTxt ?? fullTxt) : fullTxt;
-    if(COMPACT && fullTxt) el.title = fullTxt;
-  }
-  function applyCompactUI(){
-    document.querySelectorAll('.bar button').forEach(b=>{
-      if(COMPACT){ b.style.padding='8px 10px'; b.style.fontSize='13px'; b.style.borderRadius='10px'; }
-      else{ b.style.padding=''; b.style.fontSize=''; b.style.borderRadius=''; }
-    });
-    updateSpawnButtons(); updateMineButtons(); updateTopButtons();
+  function setUIScale(){
+    const scale = clamp(canvas.width/720, 0.68, 1.0);
+    document.documentElement.style.setProperty('--uiScale', scale.toFixed(3));
   }
   function resize(){
-    if(!wrap) return;
-    const w=wrap.clientWidth, h=wrap.clientHeight;
-    const isPortrait = w < h;
-    const r = isPortrait ? 9/16 : 16/9;
+    setBarVars();
+    const vh = window.innerHeight;
+    const availH = Math.max(200, vh - hdr.offsetHeight - barEl.offsetHeight);
+    wrap.style.height = availH + 'px';
+
+    const w = wrap.clientWidth, h = wrap.clientHeight;
+    const isPortrait = w < h, r = isPortrait ? 9/16 : 16/9;
     let cw=w, ch=Math.floor(w/r);
     if(ch>h){ ch=h; cw=Math.floor(h*r); }
     canvas.width=cw; canvas.height=ch;
-    setCompactFlag();
-    applyCompactUI();
+    setUIScale();
+    updateSpawnButtons(); updateMineButtons();
   }
   on(window,'resize',resize);
 
   /* ===== Immagini ===== */
-  function makeImg(src){ const im=new Image(); let ok=false; im.onload=()=>ok=true; im.src=src; return {img:im, ok:()=>ok}; }
+  function pack(src){ const im=new Image(); let ok=false; im.onload=()=>ok=true; im.src=src; return {img:im, ok:()=>ok}; }
+  const bg=pack('new.png'), tP=pack('torre1.png'), tE=pack('torre2.png');
+  const iAlien=pack('alien.png'), iGolem=pack('golem.png'), iSoldier1=pack('soldier1.png'), iWizard=pack('wizard.png'), iMiniWizard=pack('minimago.png');
+  const iAlien2=pack('alien2.png'), iGolem2=pack('golem2.png'), iGolemPrime=pack('golem2.1.png'), iGolem22=pack('golem2.2.png'), iGoblin2=pack('goblin2.png'), iSoldier2=pack('soldier2.png');
+  const iFire=pack('fuoco.png'), iBoom=pack('boom.png'), iFireB=pack('fuocoblu.png'), iBoom2=pack('boom2.png');
+  const iL1=pack('fulmine1.png'), iL2=pack('fulmine2.png'), iL3=pack('fulmine3.png');
+  const iF1=pack('incendio1.png'), iF2=pack('incendio2.png'), iF3=pack('incendio3.png');
+  const iS1=pack('gelo1.png'), iS2=pack('gelo2.png'), iS3=pack('gelo3.png');
+  const iM1=pack('miniera1.png'), iM2=pack('miniera2.png'), iM3=pack('miniera3.png');
 
-  const bg = makeImg('new.png');
-  const tP = makeImg('torre1.png');
-  const tE = makeImg('torre2.png');
-
-  // Alleati
-  const iAlien = makeImg('alien.png');
-  const iGolem = makeImg('golem.png');
-  const iSoldier1 = makeImg('soldier1.png');
-  const iWizard = makeImg('wizard.png');
-  const iMiniWizard = makeImg('minimago.png');
-
-  // Nemici
-  const iAlien2 = makeImg('alien2.png');
-  const iGolem2 = makeImg('golem2.png');
-  const iGolemPrime = makeImg('golem2.1.png');
-  const iGolem22 = makeImg('golem2.2.png');
-  const iGoblin2 = makeImg('goblin2.png');
-  const iSoldier2 = makeImg('soldier2.png');
-
-  // Proiettili / Effetti
-  const iFire = makeImg('fuoco.png');
-  const iBoom = makeImg('boom.png');
-  const iFireB = makeImg('fuocoblu.png');
-  const iBoom2 = makeImg('boom2.png');
-
-  // Sprite incantesimi
-  const iL1 = makeImg('fulmine1.png');
-  const iL2 = makeImg('fulmine2.png');
-  const iL3 = makeImg('fulmine3.png');
-
-  const iF1 = makeImg('incendio1.png');
-  const iF2 = makeImg('incendio2.png');
-  const iF3 = makeImg('incendio3.png');
-
-  const iS1 = makeImg('gelo1.png');
-  const iS2 = makeImg('gelo2.png');
-  const iS3 = makeImg('gelo3.png');
-
-  // Miniere
-  const iM1 = makeImg('miniera1.png');
-  const iM2 = makeImg('miniera2.png');
-  const iM3 = makeImg('miniera3.png');
-
-  /* ===== Bilanciamento e costanti ===== */
-  const MAX_UNIT_LVL = 30;
-  const MAX_SPELL_LVL = 30;
-  const SPAWN_STEP   = 1.10;
-  const SPELL_CAST_STEP = 1.10;
-  const ENERGY_DECAY = 0.0018; // non usato con incomeFall=1
-
-  /* ===== Stato ===== */
+  /* ===== Costanti / Stato ===== */
+  const MAX_UNIT_LVL=30, MAX_SPELL_LVL=30, SPAWN_STEP=1.10;
   const state={
     time:0, dt:0, last:0, speed:1, paused:false, level:1,
     incomeP:6, incomeE:6, energyP:180, energyE:180,
-    dmgMulP:1, incomeMulP:1, incomeFall:1, unitSpeedMul:0.35,
-
-    unitUp:{
-      Warrior:{lvl:0, dmg:1.00, hp:1.00},
-      Crossbow:{lvl:0, dmg:1.00, hp:1.00},
-      Golem:{lvl:0, dmg:1.00, hp:1.00},
-      Wizard:{lvl:0, dmg:1.00, hp:1.00},
-      BabyWizard:{lvl:0, dmg:1.00, hp:1.00}
-    },
-
-    globalUp:{ dmg:0, inc:0 },
-
-    spells:{
-      lightning:{cost:250, dmg:70, unlockLvl:2, lvl:0, mul:1.00},
-      fire:{cost:600, impact:400, dot:100, dotDur:5, unlockLvl:4, lvl:0, mul:1.00},
-      slow:{cost:800, factor:0.4, dur:20, unlockLvl:6, lvl:0, mul:1.00}
-    },
-    targeting:null,
-    aimX:null,
-
+    dmgMulP:1, incomeMulP:1, unitSpeedMul:0.35,
+    unitUp:{ Warrior:{lvl:0,dmg:1,hp:1}, Crossbow:{lvl:0,dmg:1,hp:1}, Golem:{lvl:0,dmg:1,hp:1}, Wizard:{lvl:0,dmg:1,hp:1}, BabyWizard:{lvl:0,dmg:1,hp:1} },
+    globalUp:{dmg:0, inc:0},
+    spells:{ lightning:{cost:250,dmg:70,unlockLvl:2,lvl:0,mul:1}, fire:{cost:600,impact:400,dot:100,dotDur:5,unlockLvl:4,lvl:0,mul:1}, slow:{cost:800,factor:0.4,dur:20,unlockLvl:6,lvl:0,mul:1} },
+    targeting:null, aimX:null,
     /* Miniere */
     minePlaceCost: Math.round(500*1.4),
-    mines:[],
-    mineRates:[21,33,60,120],
-    mineCosts:[Math.round(500*1.4), Math.round(700*1.4), Math.round(1200*1.4)],
-    maxMines:3,
-
+    mines:[], mineRates:[21,33,60,120], mineCosts:[Math.round(500*1.4),Math.round(700*1.4),Math.round(1200*1.4)], maxMines:3,
     entities:[], projectiles:[], effects:[],
     towers:{ P:{x:70,y:0,w:44,h:260,hp:1200,max:1200}, E:{x:0,y:0,w:44,h:260,hp:1200,max:1200} },
-    ai:{ timer:0, cadence:3.2, spawnCount:0 },
-    maxEnemies:22
+    ai:{ timer:0, cadence:3.2, spawnCount:0 }, maxEnemies:22
   };
-
-  // upgrade per-unità
-  const UP={
-    Warrior:{base:120, step:1.35, bonusD:0.12, bonusH:0.14},
-    Crossbow:{base:160, step:1.35, bonusD:0.12, bonusH:0.14},
-    Golem  :{base:220, step:1.35, bonusD:0.12, bonusH:0.14},
-    Wizard :{base:320, step:1.35, bonusD:0.12, bonusH:0.14},
-    BabyWizard:{base:520, step:1.35, bonusD:0.12, bonusH:0.14}
-  };
-
-  // potenziamenti incantesimi
-  const SPELL_UP={
-    lightning:{base:220, step:1.35, bonus:0.12},
-    fire     :{base:280, step:1.35, bonus:0.12},
-    slow     :{base:260, step:1.35, bonus:0.10}
-  };
-
-  function enemyScale(){ return Math.pow(1.05, Math.max(0, state.level-1)); }
-  function format(n){ return Math.round(n); }
-
-  function reset(){
-    resize();
-    state.entities.length=0; state.projectiles.length=0; state.effects.length=0;
-    state.time=0; state.last=performance.now(); state.dt=0; state.speed=1; state.paused=false;
-    state.level=1; state.incomeP=6; state.incomeE=6; state.energyP=180; state.energyE=180;
-    state.dmgMulP=1; state.incomeMulP=1; state.incomeFall=1; state.unitSpeedMul=0.35;
-
-    state.towers.P.max=1200; state.towers.E.max=1200;
-    state.towers.P.hp=1200;  state.towers.E.hp=1200;
-
-    state.ai.timer=0; state.ai.cadence=3.2; state.ai.spawnCount=0; state.maxEnemies=22;
-    state.targeting=null; state.aimX=null;
-
-    state.mines = [];
-
-    // reset incantesimi
-    state.spells.lightning.lvl=0; state.spells.lightning.mul=1.00;
-    state.spells.fire.lvl=0; state.spells.fire.mul=1.00;
-    state.spells.slow.lvl=0; state.spells.slow.mul=1.00;
-
-    const g=groundY();
-    state.towers.P.y=g; state.towers.E.y=g; state.towers.E.x=canvas.width-70;
-
-    updateHUD(); hideOverlay();
-    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons(); updateTopButtons();
-
-    showLevelIntro();
-  }
-
-  /* ===== Slow factor da campi di gelo ===== */
-  function slowFactorFor(unit){
-    if(unit.side!=='E') return 1;
-    let mul=1;
-    for(let i=0;i<state.effects.length;i++){
-      const e=state.effects[i];
-      if(!e || !e.isSlowField) continue;
-      if(e.t>=e.dur) continue;
-      const dx=unit.x - e.x, dy=unit.y - e.y, r2=e.r*e.r;
-      if(dx*dx+dy*dy <= r2){ mul = Math.min(mul, e.factor); }
-    }
-    return mul;
-  }
+  const UP={ Warrior:{base:120,step:1.35,bonusD:0.12,bonusH:0.14}, Crossbow:{base:160,step:1.35,bonusD:0.12,bonusH:0.14}, Golem:{base:220,step:1.35,bonusD:0.12,bonusH:0.14}, Wizard:{base:320,step:1.35,bonusD:0.12,bonusH:0.14}, BabyWizard:{base:520,step:1.35,bonusD:0.12,bonusH:0.14} };
+  const SPELL_UP={ lightning:{base:220,step:1.35,bonus:0.12}, fire:{base:280,step:1.35,bonus:0.12}, slow:{base:260,step:1.35,bonus:0.10} };
+  const enemyScale=()=>Math.pow(1.05, Math.max(0, state.level-1));
+  const format=n=>Math.round(n);
 
   /* ===== Unità ===== */
   function Unit(side,type){
     this.side=side; this.type=type; const base=Unit.types[type];
-    const sc = (side==='E') ? enemyScale() : 1;
-
-    // moltiplicatori player (DMG/HP)
-    const u = (side==='P' && state.unitUp[type]) ? state.unitUp[type] : null;
-    const dmgMul = u ? u.dmg : 1;
-    const hpMul  = u ? u.hp  : 1;
-
-    this.baseDamage = base.damage*sc;
-    this.damageMul  = dmgMul;
-    this.maxHp = base.hp*sc*hpMul;
-    this.hp    = this.maxHp;
-
+    const sc=(side==='E') ? enemyScale():1;
+    const u=(side==='P' && state.unitUp[type]) ? state.unitUp[type] : null;
+    this.baseDamage=base.damage*sc; this.damageMul=u?u.dmg:1;
+    this.maxHp=base.hp*sc*(u?u.hp:1); this.hp=this.maxHp;
     this.speed=base.speed; this.range=base.range; this.cool=base.cool; this.timer=0;
     this.reward=base.reward; this.cost=base.cost; this.ranged=base.ranged; this.size=base.size;
-
-    this.y = groundY();
-    this.x = (side==='P') ? (state.towers.P.x - state.towers.P.w/2 - 30)
-                          : (state.towers.E.x + state.towers.E.w/2 + 30);
-    this.dir=(side==='P')? 1 : -1;
-    this.shake=0;
-    this.lastTargetX=null;
-
+    this.y=groundY(); this.x=(side==='P')?(state.towers.P.x-state.towers.P.w/2-30):(state.towers.E.x+state.towers.E.w/2+30);
+    this.dir=(side==='P')?1:-1; this.shake=0; this.lastTargetX=null;
     if(type==='EGolemPrime'){ this.spawnEvery=3; this.spawnTimer=this.spawnEvery; }
-    if(type==='EGolemRoll'){ this.angle=0; this.rollR = this.size*1.25; }
+    if(type==='EGolemRoll'){ this.angle=0; this.rollR=this.size*1.25; }
   }
-
   Unit.prototype.update=function(dt){
-    if(this.shake>0) this.shake=Math.max(0, this.shake - dt*4);
+    if(this.shake>0) this.shake=Math.max(0,this.shake-dt*4);
     if(this.type==='EGolemPrime'){
-      this.spawnTimer -= dt;
+      this.spawnTimer-=dt;
       if(this.spawnTimer<=0){
-        this.spawnTimer += this.spawnEvery;
-        const g = new Unit('E','EGoblin');
-        g.x = this.x + rnd(-12,12); g.y=this.y;
-        state.entities.push(g);
+        this.spawnTimer+=this.spawnEvery;
+        const g=new Unit('E','EGoblin'); g.x=this.x+rnd(-12,12); g.y=this.y; state.entities.push(g);
       }
     }
     const foes=state.entities.filter(e=>e.side!==this.side);
     let target=null, best=1e9;
     for(let i=0;i<foes.length;i++){
-      const f=foes[i]; const d=Math.abs(f.x-this.x);
-      if((this.dir>0 && f.x>=this.x) || (this.dir<0 && f.x<=this.x)){
-        if(d<best){ best=d; target=f; }
-      }
+      const f=foes[i], d=Math.abs(f.x-this.x);
+      if((this.dir>0 && f.x>=this.x) || (this.dir<0 && f.x<=this.x)){ if(d<best){best=d; target=f;} }
     }
-    if(target) this.lastTargetX = target.x;
-    if(!target){ target=(this.side==='P')? state.towers.E : state.towers.P; best=Math.abs(target.x-this.x); }
+    if(target) this.lastTargetX=target.x;
+    if(!target){ target=(this.side==='P')?state.towers.E:state.towers.P; best=Math.abs(target.x-this.x); }
     if(best<=this.range){ this.timer-=dt; if(this.timer<=0){ this.attack(target); this.timer=this.cool; } }
-    else {
-      const slowMul = slowFactorFor(this);
-      const step = this.speed*state.unitSpeedMul*slowMul*this.dir*dt*60;
-      this.x += step; this.x=clamp(this.x, 20, canvas.width-20);
-      if(this.type==='EGolemRoll'){ this.angle -= Math.abs(step) / (this.rollR || 40); }
+    else{
+      const slowMul=slowFactorFor(this);
+      const step=this.speed*state.unitSpeedMul*slowMul*this.dir*dt*60;
+      this.x+=step; this.x=clamp(this.x,20,canvas.width-20);
+      if(this.type==='EGolemRoll'){ this.angle-=Math.abs(step)/(this.rollR||40); }
     }
   };
-
   Unit.prototype.attack=function(target){
-    // danno effettivo = base × upgradeUnit.dmg × (dmg globale se Player)
-    const dmgEff = this.baseDamage * (this.side==='P' ? this.damageMul*state.dmgMulP : 1);
-
-    // maghi lanciano AoE
-    if(this.side==='P' && (this.type==='Wizard' || this.type==='BabyWizard')){
-      this.shake = 0.25;
-      const tx = (this.lastTargetX!==null)? this.lastTargetX : (this.x + 200*this.dir);
-      if(this.type==='Wizard'){
-        state.projectiles.push(new Projectile(tx, -60, 0, this.side, dmgEff, 'fire', false, {vy:520, radius:70}));
-      }else{
-        state.projectiles.push(new Projectile(tx, -60, 0, this.side, dmgEff, 'fireB', false, {vy:520, radius:70}));
-      }
+    const dmgEff=this.baseDamage*(this.side==='P'? this.damageMul*state.dmgMulP : 1);
+    if(this.side==='P' && (this.type==='Wizard'||this.type==='BabyWizard')){
+      this.shake=0.25; const tx=(this.lastTargetX!==null)?this.lastTargetX:(this.x+200*this.dir);
+      state.projectiles.push(new Projectile(tx,-60,0,this.side,dmgEff,this.type==='Wizard'?'fire':'fireB',false,{vy:520,radius:70}));
       return;
     }
-
     if(this.ranged){
-      const v=(this.side==='P')? 320 : -320;
+      const v=(this.side==='P')?320:-320;
       state.projectiles.push(new Projectile(this.x,this.y-10,v,this.side,dmgEff,'bolt',true));
-    } else {
-      dealDamage(target,dmgEff);
-    }
+    } else dealDamage(target,dmgEff);
   };
-
   Unit.prototype.draw=function(){
-    ctx.save();
-    if(this.shake>0){
-      const amp=2.2*this.shake;
-      ctx.translate((Math.random()-0.5)*amp, (Math.random()-0.5)*amp);
-    }
-
-    const t=this.type, s=this.size;
-    const drawRect=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x-w/2,y-h,w,h); };
-
-    if(t==='Crossbow'){
-      if(iAlien.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iAlien.img.height), dw=iAlien.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iAlien.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.7,s*0.7,'#7be8ff');
-    } else if(t==='ECrossbow'){
-      if(iAlien2.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iAlien2.img.height), dw=iAlien2.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iAlien2.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.7,s*0.7,'#ffa1c3');
-    } else if(t==='Golem'){
-      if(iGolem.ok()){ let dh=s*2.3, sc=dh/Math.max(1,iGolem.img.height), dw=iGolem.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGolem.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.9,s*0.9,'#5dd6ff');
-    } else if(t==='EGolem'){
-      if(iGolem2.ok()){ let dh=s*2.3, sc=dh/Math.max(1,iGolem2.img.height), dw=iGolem2.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGolem2.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.9,s*0.9,'#ff86b1');
-    } else if(t==='EGolemPrime'){
-      if(iGolemPrime.ok()){ let dh=s*2.8, sc=dh/Math.max(1,iGolemPrime.img.height), dw=iGolemPrime.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGolemPrime.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s,s,'#d48cff');
-    } else if(t==='EGolemRoll'){
-      const R=this.rollR||s*1.25, S=R*2, cy=this.y-R;
-      if(iGolem22.ok()){ ctx.translate(this.x,cy); ctx.rotate(this.angle); ctx.drawImage(iGolem22.img,-S/2,-S/2,S,S); }
-      else{ ctx.translate(this.x,cy); ctx.rotate(this.angle); ctx.fillStyle='#ff9bd0'; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill(); }
-    } else if(t==='EGoblin'){
-      if(iGoblin2.ok()){ let dh=s*1.6, sc=dh/Math.max(1,iGoblin2.img.height), dw=iGoblin2.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGoblin2.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.8,s*0.8,'#88ff88');
-    } else if(t==='Warrior'){
-      if(iSoldier1.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iSoldier1.img.height), dw=iSoldier1.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iSoldier1.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.7,s*0.7,'#39cfff');
-    } else if(t==='EWarrior'){
-      if(iSoldier2.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iSoldier2.img.height), dw=iSoldier2.img.width*sc; ctx.translate(this.x,this.y); ctx.scale(-1,1); ctx.drawImage(iSoldier2.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.7,s*0.7,'#ff5f9a');
-    } else if(t==='Wizard'){
-      if(iWizard.ok()){ let dh=s*2.0, sc=dh/Math.max(1,iWizard.img.height), dw=iWizard.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iWizard.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.7,s*0.9,'#c9a7ff');
-    } else if(t==='BabyWizard'){
-      if(iMiniWizard.ok()){ let dh=s*2.0, sc=dh/Math.max(1,iMiniWizard.img.height), dw=iMiniWizard.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iMiniWizard.img,-dw/2,-dh,dw,dh); }
-      else drawRect(this.x,this.y,s*0.7,s*0.9,'#7ecbff');
-    }
+    ctx.save(); if(this.shake>0){ const a=2.2*this.shake; ctx.translate((Math.random()-0.5)*a,(Math.random()-0.5)*a); }
+    const t=this.type,s=this.size, rect=(x,y,w,h,c)=>{ctx.fillStyle=c;ctx.fillRect(x-w/2,y-h,w,h);};
+    function drawImg(pack,dh){ const sc=dh/Math.max(1,pack.img.height), dw=pack.img.width*sc; ctx.drawImage(pack.img,-dw/2,-dh,dw,dh); }
+    if(t==='Crossbow'){ iAlien.ok()? (ctx.translate(this.x,this.y),drawImg(iAlien,s*1.9)) : rect(this.x,this.y,s*.7,s*.7,'#7be8ff'); }
+    else if(t==='ECrossbow'){ iAlien2.ok()? (ctx.translate(this.x,this.y),drawImg(iAlien2,s*1.9)) : rect(this.x,this.y,s*.7,s*.7,'#ffa1c3'); }
+    else if(t==='Golem'){ iGolem.ok()? (ctx.translate(this.x,this.y),drawImg(iGolem,s*2.3)) : rect(this.x,this.y,s*.9,s*.9,'#5dd6ff'); }
+    else if(t==='EGolem'){ iGolem2.ok()? (ctx.translate(this.x,this.y),drawImg(iGolem2,s*2.3)) : rect(this.x,this.y,s*.9,s*.9,'#ff86b1'); }
+    else if(t==='EGolemPrime'){ iGolemPrime.ok()? (ctx.translate(this.x,this.y),drawImg(iGolemPrime,s*2.8)) : rect(this.x,this.y,s,s,'#d48cff'); }
+    else if(t==='EGolemRoll'){ const R=this.rollR||s*1.25,S=R*2,cy=this.y-R; if(iGolem22.ok()){ctx.translate(this.x,cy);ctx.rotate(this.angle);ctx.drawImage(iGolem22.img,-S/2,-S/2,S,S);} else{ctx.translate(this.x,cy);ctx.rotate(this.angle);ctx.fillStyle='#ff9bd0';ctx.beginPath();ctx.arc(0,0,R,0,Math.PI*2);ctx.fill();} }
+    else if(t==='EGoblin'){ iGoblin2.ok()? (ctx.translate(this.x,this.y),drawImg(iGoblin2,s*1.6)) : rect(this.x,this.y,s*.8,s*.8,'#88ff88'); }
+    else if(t==='Warrior'){ iSoldier1.ok()? (ctx.translate(this.x,this.y),drawImg(iSoldier1,s*1.9)) : rect(this.x,this.y,s*.7,s*.7,'#39cfff'); }
+    else if(t==='EWarrior'){ if(iSoldier2.ok()){let dh=s*1.9,sc=dh/Math.max(1,iSoldier2.img.height),dw=iSoldier2.img.width*sc;ctx.translate(this.x,this.y);ctx.scale(-1,1);ctx.drawImage(iSoldier2.img,-dw/2,-dh,dw,dh);} else rect(this.x,this.y,s*.7,s*.7,'#ff5f9a'); }
+    else if(t==='Wizard'){ iWizard.ok()? (ctx.translate(this.x,this.y),drawImg(iWizard,s*2.0)) : rect(this.x,this.y,s*.7,s*.9,'#c9a7ff'); }
+    else if(t==='BabyWizard'){ iMiniWizard.ok()? (ctx.translate(this.x,this.y),drawImg(iMiniWizard,s*2.0)) : rect(this.x,this.y,s*.7,s*.9,'#7ecbff'); }
     ctx.restore();
-
-    // barra HP
     const bw=Math.max(20,this.size*1.1);
     ctx.fillStyle='rgba(255,255,255,.14)'; ctx.fillRect(this.x-bw/2, this.y-this.size*1.25-10, bw, 6);
     ctx.fillStyle=HP_GREEN; ctx.fillRect(this.x-bw/2, this.y-this.size*1.25-10, bw*(this.hp/this.maxHp), 6);
   };
-
-  /* ===== Stat unità ===== */
   Unit.types={
     Warrior:{hp:100,speed:1.6,damage:20,range:18,cool:0.55,reward:22,cost:50 ,ranged:false,size:24},
     Crossbow:{hp:75,speed:1.15,damage:10,range:160,cool:0.8 ,reward:28,cost:80 ,ranged:true ,size:24},
     Golem  :{hp:660,speed:0.8,damage:34,range:22,cool:1.0 ,reward:42,cost:120,ranged:false,size:28},
     Wizard :{hp:70,speed:1.2,damage:45,range:210,cool:3.38,reward:55,cost:400,ranged:true ,size:26},
     BabyWizard:{hp:35,speed:1.0,damage:70,range:360,cool:4.5,reward:95,ranged:true,size:26,cost:700},
-
     EWarrior:{hp:75,speed:1.5,damage:12,range:18,cool:0.55,reward:0 ,cost:50 ,ranged:false,size:24},
     ECrossbow:{hp:90,speed:1.1,damage:14,range:160,cool:0.85,reward:0 ,cost:80 ,ranged:true ,size:24},
-
     EGolem  :{hp:500,speed:0.75,damage:36,range:22,cool:1.05,reward:0 ,ranged:false,size:28},
     EGolemPrime:{hp:250*15,speed:0.75/2,damage:36*10,range:22,cool:1.2,reward:0,cost:120,ranged:false,size:32},
     EGolemRoll:{hp:2000,speed:1,damage:90,range:22,cool:0.5,reward:0,cost:160,ranged:false,size:34},
     EGoblin:{hp:70,speed:1.8,damage:9,range:18,cool:0.6,reward:0,cost:20,ranged:false,size:20}
   };
 
-  /* ===== Effetti rapidi ===== */
+  /* ===== Effetti / Proiettili ===== */
   function Boom(x,y,r,kind){ this.x=x; this.y=y; this.r=r; this.kind=kind||'fire'; this.t=0; this.dur=0.38; }
   Boom.prototype.update=function(dt){ this.t+=dt; };
   Boom.prototype.draw=function(){
-    const k = Math.min(1, this.t/this.dur);
-    const alpha = 1 - k, scale = 0.6 + 0.6*k;
-    ctx.save(); ctx.globalAlpha = alpha; ctx.globalCompositeOperation = 'screen';
-    if(this.kind==='lightning' && iL3.ok()){ const sz=this.r*2*scale; ctx.drawImage(iL3.img, this.x-sz/2, this.y-sz/2, sz, sz); }
-    else if(this.kind==='spellFire' && iF3.ok()){ const s2=this.r*2*scale; ctx.drawImage(iF3.img, this.x-s2/2, this.y-s2/2, s2, s2); }
+    const k=Math.min(1,this.t/this.dur), alpha=1-k, scale=0.6+0.6*k;
+    ctx.save(); ctx.globalAlpha=alpha; ctx.globalCompositeOperation='screen';
+    if(this.kind==='lightning' && iL3.ok()){ const sz=this.r*2*scale; ctx.drawImage(iL3.img,this.x-sz/2,this.y-sz/2,sz,sz); }
+    else if(this.kind==='spellFire' && iF3.ok()){ const s2=this.r*2*scale; ctx.drawImage(iF3.img,this.x-s2/2,this.y-s2/2,s2,s2); }
     else{
-      const im = (this.kind==='fireB') ? iBoom2.img : iBoom.img;
-      const ok = (this.kind==='fireB') ? iBoom2.ok() : iBoom.ok();
-      if(ok){ const s3=this.r*2*scale; ctx.drawImage(im, this.x - s3/2, this.y - s3/2, s3, s3); }
+      const usesBlue=this.kind==='fireB', im=usesBlue?iBoom2.img:iBoom.img, ok=usesBlue?iBoom2.ok():iBoom.ok();
+      if(ok){ const s3=this.r*2*scale; ctx.drawImage(im,this.x-s3/2,this.y-s3/2,s3,s3); }
       else{
         const rad=this.r*scale, grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
-        if(this.kind==='fireB'){ grd.addColorStop(0,'rgba(160,220,255,.95)'); grd.addColorStop(1,'rgba(40,140,255,0)'); }
+        if(usesBlue){ grd.addColorStop(0,'rgba(160,220,255,.95)'); grd.addColorStop(1,'rgba(40,140,255,0)'); }
         else if(this.kind==='lightning'){ grd.addColorStop(0,'rgba(200,235,255,.95)'); grd.addColorStop(1,'rgba(80,170,255,0)'); }
         else if(this.kind==='spellFire'){ grd.addColorStop(0,'rgba(255,180,80,.95)'); grd.addColorStop(1,'rgba(255,80,20,0)'); }
         else{ grd.addColorStop(0,'rgba(255,220,120,.95)'); grd.addColorStop(1,'rgba(255,120,40,0)'); }
@@ -565,386 +361,223 @@
     }
     ctx.restore();
   };
-
   function BurnField(x,y,r,dps,dur){ this.x=x; this.y=y; this.r=r; this.dps=dps; this.t=0; this.dur=dur; }
   BurnField.prototype.update=function(dt){
-    this.t+=dt; const dmg=this.dps*dt;
-    const foes=state.entities.filter(e=>e.side==='E');
-    const r2=this.r*this.r;
-    for(let i=0;i<foes.length;i++){ const f=foes[i]; const dx=f.x-this.x, dy=f.y-this.y; if(dx*dx+dy*dy<=r2){ dealDamage(f,dmg); } }
+    this.t+=dt; const dmg=this.dps*dt, foes=state.entities.filter(e=>e.side==='E'), r2=this.r*this.r;
+    for(let i=0;i<foes.length;i++){ const f=foes[i], dx=f.x-this.x, dy=f.y-this.y; if(dx*dx+dy*dy<=r2) dealDamage(f,dmg); }
   };
   BurnField.prototype.draw=function(){
-    let k=this.t/this.dur; if(k>1) k=1;
-    const alpha=0.28*(1-k)+0.18;
+    let k=this.t/this.dur; if(k>1) k=1; const alpha=0.28*(1-k)+0.18;
     ctx.save(); ctx.globalCompositeOperation='screen';
-    const rad=this.r*(1+0.04*Math.sin(state.time*4));
-    const grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
-    grd.addColorStop(0,'rgba(255,160,60,'+alpha+')'); grd.addColorStop(1,'rgba(255,60,0,0)');
-    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
+    const rad=this.r*(1+0.04*Math.sin(state.time*4)), g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
+    g.addColorStop(0,'rgba(255,160,60,'+alpha+')'); g.addColorStop(1,'rgba(255,60,0,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
   };
-
   function SlowField(x,y,r,factor,dur){ this.x=x; this.y=y; this.r=r; this.factor=factor; this.t=0; this.dur=dur; this.isSlowField=true; }
   SlowField.prototype.update=function(dt){ this.t+=dt; };
   SlowField.prototype.draw=function(){
-    let k=this.t/this.dur; if(k>1) k=1;
-    const alpha=0.30*(1-k)+0.12;
+    let k=this.t/this.dur; if(k>1) k=1; const a=0.30*(1-k)+0.12;
     ctx.save(); ctx.globalCompositeOperation='screen';
-    const rad=this.r*(1+0.03*Math.sin(state.time*3));
-    const grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
-    grd.addColorStop(0,'rgba(170,220,255,'+alpha+')'); grd.addColorStop(1,'rgba(80,170,255,0)');
-    ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.fill();
-    ctx.strokeStyle='rgba(150,210,255,'+(alpha*1.3)+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.stroke();
+    const rad=this.r*(1+0.03*Math.sin(state.time*3)), g=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
+    g.addColorStop(0,'rgba(170,220,255,'+a+')'); g.addColorStop(1,'rgba(80,170,255,0)');
+    ctx.fillStyle=g; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='rgba(150,210,255,'+(a*1.3)+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.stroke();
     ctx.restore();
   };
-
-  /* ===== Proiettili ===== */
   function Projectile(x,y,vx,side,damage,kind,canHitTower,opts){
     this.x=x; this.y=y; this.vx=vx; this.side=side; this.damage=damage; this.dead=false;
     this.kind=kind||'bolt'; this.canHitTower=(canHitTower!==false);
     if(opts){ this.vy=opts.vy||520; this.radius=opts.radius||70; } else { this.vy=0; this.radius=0; }
   }
   Projectile.prototype.update=function(dt){
-    if(this.kind==='fire' || this.kind==='fireB' || this.kind==='lightning' || this.kind==='fireSpell' || this.kind==='slowSpell'){
-      this.y += this.vy*dt;
-      const gy = groundY(), impactY = gy;
-      if(this.y >= impactY){
-        this.y = impactY;
-
+    if(this.kind==='fire'||this.kind==='fireB'||this.kind==='lightning'||this.kind==='fireSpell'||this.kind==='slowSpell'){
+      this.y+=this.vy*dt; const gy=groundY(), impactY=gy;
+      if(this.y>=impactY){
+        this.y=impactY;
         if(this.kind!=='slowSpell'){
-          const foes=state.entities.filter(e=>e.side!==this.side);
-          const r2=this.radius*this.radius;
-          for(let i=0;i<foes.length;i++){
-            const f=foes[i]; const dx=f.x-this.x, dy=(f.y-impactY); const d2=dx*dx+dy*dy;
-            if(d2<=r2){ dealDamage(f,this.damage); }
-          }
-          const tower = (this.side==='P')? state.towers.E : state.towers.P;
-          if(Math.abs(tower.x-this.x) <= this.radius + 28){ dealDamage(tower, this.damage); }
+          const foes=state.entities.filter(e=>e.side!==this.side), r2=this.radius*this.radius;
+          for(let i=0;i<foes.length;i++){ const f=foes[i], dx=f.x-this.x, dy=f.y-impactY, d2=dx*dx+dy*dy; if(d2<=r2) dealDamage(f,this.damage); }
+          const tower=(this.side==='P')?state.towers.E:state.towers.P;
+          if(Math.abs(tower.x-this.x)<=this.radius+28) dealDamage(tower,this.damage);
         }
-
-        if(this.kind==='lightning'){
-          state.effects.push(new Boom(this.x, impactY, this.radius, 'lightning'));
-        }else if(this.kind==='fireSpell'){
-          state.effects.push(new Boom(this.x, impactY, this.radius, 'spellFire'));
-          const dps = (state.spells.fire.dot * state.spells.fire.mul) * state.dmgMulP;
-          const dur = state.spells.fire.dotDur + 2*state.spells.fire.lvl;
-          state.effects.push(new BurnField(this.x, impactY, this.radius, dps, dur));
+        if(this.kind==='lightning'){ state.effects.push(new Boom(this.x,impactY,this.radius,'lightning')); }
+        else if(this.kind==='fireSpell'){
+          state.effects.push(new Boom(this.x,impactY,this.radius,'spellFire'));
+          const dps=(state.spells.fire.dot*state.spells.fire.mul)*state.dmgMulP;
+          const dur=state.spells.fire.dotDur+2*state.spells.fire.lvl;
+          state.effects.push(new BurnField(this.x,impactY,this.radius,dps,dur));
         }else if(this.kind==='slowSpell'){
-          const effFactor = Math.max(0.2, state.spells.slow.factor * Math.pow(0.96, state.spells.slow.lvl));
-          const effDur = state.spells.slow.dur + 2*state.spells.slow.lvl;
-          state.effects.push(new SlowField(this.x, impactY, this.radius, effFactor, effDur));
+          const eff=Math.max(0.2,state.spells.slow.factor*Math.pow(0.96,state.spells.slow.lvl));
+          const dur=state.spells.slow.dur+2*state.spells.slow.lvl;
+          state.effects.push(new SlowField(this.x,impactY,this.radius,eff,dur));
         }else{
-          state.effects.push(new Boom(this.x, impactY, this.radius, this.kind));
+          state.effects.push(new Boom(this.x,impactY,this.radius,this.kind));
         }
         this.dead=true;
       }
       if(this.y>canvas.height+120) this.dead=true;
       return;
     }
-
-    // proiettile standard
-    this.x += this.vx*dt;
+    this.x+=this.vx*dt;
     const foes2=state.entities.filter(e=>e.side!==this.side);
     for(let j=0;j<foes2.length;j++){
       const f2=foes2[j];
       if(Math.abs(f2.x-this.x)<14 && Math.abs(f2.y-this.y)<18){ dealDamage(f2,this.damage); this.dead=true; break; }
     }
     if(this.canHitTower){
-      const t = (this.side==='P')? state.towers.E : state.towers.P;
+      const t=(this.side==='P')?state.towers.E:state.towers.P;
       if(Math.abs(t.x-this.x)<26 && this.y>t.y-180){ dealDamage(t,this.damage); this.dead=true; }
     }
     if(this.x<-80||this.x>canvas.width+80) this.dead=true;
   };
   Projectile.prototype.draw=function(){
-    if(this.kind==='fire' || this.kind==='fireB' || this.kind==='lightning' || this.kind==='fireSpell' || this.kind==='slowSpell'){
+    if(this.kind==='fire'||this.kind==='fireB'||this.kind==='lightning'||this.kind==='fireSpell'||this.kind==='slowSpell'){
       ctx.save(); ctx.globalCompositeOperation='screen';
-
       if(this.kind==='lightning'){
-        const gy = groundY(), hSpan = gy + 120, phase = clamp((this.y+120)/hSpan, 0, 1);
-        let useImg=null, ok=false;
-        if(phase < 0.33){ useImg = iL1.img; ok=iL1.ok(); } else { useImg = iL2.img; ok=iL2.ok(); }
-        if(ok){ ctx.drawImage(useImg, this.x-28, this.y-43, 56, 86); }
+        const gy=groundY(), hSpan=gy+120, phase=clamp((this.y+120)/hSpan,0,1);
+        let im=null, ok=false; if(phase<.33){ im=iL1.img; ok=iL1.ok(); } else { im=iL2.img; ok=iL2.ok(); }
+        if(ok) ctx.drawImage(im,this.x-28,this.y-43,56,86);
         else{
           ctx.shadowBlur=18; ctx.shadowColor='#bfe8ff';
           ctx.strokeStyle='rgba(190,235,255,.95)'; ctx.lineWidth=3;
-          ctx.beginPath(); ctx.moveTo(this.x, this.y-30); ctx.lineTo(this.x+8, this.y-10);
-          ctx.lineTo(this.x-6, this.y-8); ctx.lineTo(this.x+4, this.y+10); ctx.stroke();
+          ctx.beginPath(); ctx.moveTo(this.x,this.y-30); ctx.lineTo(this.x+8,this.y-10);
+          ctx.lineTo(this.x-6,this.y-8); ctx.lineTo(this.x+4,this.y+10); ctx.stroke();
         }
         ctx.restore(); return;
       }
-
       if(this.kind==='fireSpell'){
-        const gy2 = groundY(), hSpan2 = gy2 + 120, phase2 = clamp((this.y+120)/hSpan2, 0, 1);
-        let useImgF=null, okF=false;
-        if(phase2 < 0.4){ useImgF = iF1.img; okF=iF1.ok(); } else { useImgF = iF2.img; okF=iF2.ok(); }
-        if(okF){ ctx.drawImage(useImgF, this.x-30, this.y-30, 60, 60); }
-        else{ ctx.fillStyle='rgba(255,120,40,.9)'; ctx.beginPath(); ctx.arc(this.x, this.y, 12, 0, Math.PI*2); ctx.fill(); }
+        const gy2=groundY(), h2=gy2+120, ph=clamp((this.y+120)/h2,0,1);
+        let im=null, ok=false; if(ph<.4){ im=iF1.img; ok=iF1.ok(); } else { im=iF2.img; ok=iF2.ok(); }
+        if(ok) ctx.drawImage(im,this.x-30,this.y-30,60,60);
+        else{ ctx.fillStyle='rgba(255,120,40,.9)'; ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI*2); ctx.fill(); }
         ctx.restore(); return;
       }
-
       if(this.kind==='slowSpell'){
-        const gy3 = groundY(), hSpan3 = gy3 + 120, phase3 = clamp((this.y+120)/hSpan3, 0, 1);
-        let useImgS=null, okS=false;
-        if(phase3 < 0.4){ useImgS = iS1.img; okS=iS1.ok(); } else { useImgS = iS2.img; okS=iS2.ok(); }
-        if(okS){ ctx.drawImage(useImgS, this.x-28, this.y-28, 56, 56); }
-        else{ ctx.fillStyle='rgba(150,210,255,.9)'; ctx.beginPath(); ctx.arc(this.x, this.y, 12, 0, Math.PI*2); ctx.fill(); }
+        const gy3=groundY(), h3=gy3+120, ph3=clamp((this.y+120)/h3,0,1);
+        let im=null, ok=false; if(ph3<.4){ im=iS1.img; ok=iS1.ok(); } else { im=iS2.img; ok=iS2.ok(); }
+        if(ok) ctx.drawImage(im,this.x-28,this.y-28,56,56);
+        else{ ctx.fillStyle='rgba(150,210,255,.9)'; ctx.beginPath(); ctx.arc(this.x,this.y,12,0,Math.PI*2); ctx.fill(); }
         ctx.restore(); return;
       }
-
-      // palle di fuoco unità
-      const useBlue = (this.kind==='fireB');
-      if(useBlue ? iFireB.ok() : iFire.ok()){ const im = useBlue ? iFireB.img : iFire.img; ctx.drawImage(im, this.x-24, this.y-24, 48, 48); }
-      else{ ctx.fillStyle= useBlue ? 'rgba(90,170,255,.9)' : 'rgba(255,120,60,.9)'; ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill(); }
+      const blue=this.kind==='fireB';
+      const ok=blue?iFireB.ok():iFire.ok();
+      if(ok){ ctx.drawImage(blue?iFireB.img:iFire.img,this.x-24,this.y-24,48,48); }
+      else{ ctx.fillStyle=blue?'rgba(90,170,255,.9)':'rgba(255,120,60,.9)'; ctx.beginPath(); ctx.arc(this.x,this.y,10,0,Math.PI*2); ctx.fill(); }
       ctx.restore(); return;
     }
-
-    // bolt
     ctx.save(); ctx.globalCompositeOperation='screen';
     ctx.shadowBlur=10; ctx.shadowColor=(this.side==='P')? '#76faff':'#ff77aa';
     ctx.fillStyle=(this.side==='P')? '#bffcff':'#ffd0e0';
-    ctx.fillRect(this.x-3, this.y-2, 6, 4);
+    ctx.fillRect(this.x-3,this.y-2,6,4);
     ctx.restore();
   };
 
-  /* ===== Danni / livelli ===== */
-  function dealDamage(target, dmg){
+  /* ===== Logica ===== */
+  function slowFactorFor(unit){
+    if(unit.side!=='E') return 1; let mul=1;
+    for(let i=0;i<state.effects.length;i++){
+      const e=state.effects[i]; if(!e||!e.isSlowField||e.t>=e.dur) continue;
+      const dx=unit.x-e.x, dy=unit.y-e.y, r2=e.r*e.r; if(dx*dx+dy*dy<=r2) mul=Math.min(mul,e.factor);
+    }
+    return mul;
+  }
+  function dealDamage(target,dmg){
     if(target.max!==undefined){
-      target.hp -= dmg;
-      if(target.hp<=0){
-        target.hp=0;
-        if(target===state.towers.E && state.towers.P.hp>0){ nextLevel(); }
-        else { endMatch(); }
-      }
+      target.hp-=dmg; if(target.hp<=0){ target.hp=0; if(target===state.towers.E && state.towers.P.hp>0) nextLevel(); else endMatch(); }
     }else{
-      target.hp -= dmg;
-      if (target.hp<=0) {
-        target.hp = 0;
-        if (target.side === 'E') state.energyP += 55; // energia per ogni nemico ucciso
-      }
+      target.hp-=dmg; if(target.hp<=0){ target.hp=0; if(target.side==='E') state.energyP+=55; }
     }
   }
 
   function showLevelIntro(){
-    const intro=$('levelIntro');
-    const title=$('introTitle');
-    const desc=$('introDesc');
-    if(!intro||!title||!desc) return;
-    title.textContent = 'LIVELLO ' + state.level;
-    desc.textContent = 'Nuova ondata in arrivo… preparati!';
-    intro.style.display='flex';
-    setTimeout(()=>{ intro.style.display='none'; state.ai.timer = 0.2; spawnEnemy(); }, 1600);
+    const intro=$('levelIntro'), title=$('introTitle'), desc=$('introDesc'); if(!intro) return;
+    title.textContent='LIVELLO '+state.level; desc.textContent='Nuova ondata in arrivo… preparati!';
+    intro.style.display='flex'; setTimeout(()=>{ intro.style.display='none'; state.ai.timer=0.2; spawnEnemy(); },1600);
   }
-
   function nextLevel(){
-    state.level++;
-    state.entities.length=0; state.projectiles.length=0; state.effects.length=0;
-
-    state.towers.P.max += 400; state.towers.E.max += 400;
-    state.towers.P.hp  = state.towers.P.max;
-    state.towers.E.hp  = state.towers.E.max;
-
-    state.incomeP*=1.12; state.incomeE*=1.14;
-    state.ai.cadence = Math.max(1.8, state.ai.cadence*0.95);
-    state.maxEnemies = Math.min(30, state.maxEnemies+2);
-    state.energyP += 200;
-
+    state.level++; state.entities.length=0; state.projectiles.length=0; state.effects.length=0;
+    state.towers.P.max+=400; state.towers.E.max+=400; state.towers.P.hp=state.towers.P.max; state.towers.E.hp=state.towers.E.max;
+    state.incomeP*=1.12; state.incomeE*=1.14; state.ai.cadence=Math.max(1.8,state.ai.cadence*0.95); state.maxEnemies=Math.min(30,state.maxEnemies+2); state.energyP+=200;
     state.ai.timer=0; state.ai.spawnCount=0; state.paused=false;
-
-    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons(); updateTopButtons();
-    updateHUD();
-    showLevelIntro();
+    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons(); updateHUD(); showLevelIntro();
   }
 
-  /* ===== Economia & Spawn ===== */
-  function canAfford(c){ return state.energyP>=c; }
-  function spend(c){ state.energyP=Math.max(0,state.energyP-c); }
-
-  function currentUnitCost(type){
-    const base = Unit.types[type].cost || 0;
-    const lvl  = state.unitUp[type] ? state.unitUp[type].lvl : 0;
-    return Math.round(base * Math.pow(SPAWN_STEP, lvl));
-  }
-  function currentSpellCost(key){
-    const base = state.spells[key].cost;
-    const lvl  = state.spells[key].lvl;
-    return Math.round(base * Math.pow(SPELL_CAST_STEP, lvl));
-  }
+  /* ===== Economia/Spawn ===== */
+  const canAfford=c=>state.energyP>=c, spend=c=>state.energyP=Math.max(0,state.energyP-c);
+  const currentUnitCost=(t)=>Math.round((Unit.types[t].cost||0)*Math.pow(SPAWN_STEP, state.unitUp[t]?state.unitUp[t].lvl:0));
+  const currentSpellCost=(k)=>Math.round(state.spells[k].cost*Math.pow(1.10,state.spells[k].lvl));
 
   function spawnPlayer(type){
     const cost=currentUnitCost(type); if(!canAfford(cost)) return;
     spend(cost); state.entities.push(new Unit('P',type)); pulseHUD(); updateHUD(); updateSpawnButtons();
   }
-
   function spawnEnemy(){
-    const enemies=state.entities.filter(e=>e.side==='E').length;
-    const slots=Math.max(0, state.maxEnemies - enemies); if(slots<=0) return;
-    const lvl=state.level; let budget=clamp(50 + lvl*22 + rnd(-10,10), 50, 450);
-    let remain=budget; let spawnedG=false; state.ai.spawnCount=(state.ai.spawnCount||0)+1; let spawned=0;
+    const enemies=state.entities.filter(e=>e.side==='E').length, slots=Math.max(0,state.maxEnemies-enemies); if(slots<=0) return;
+    const lvl=state.level; let budget=clamp(50+lvl*22+rnd(-10,10),50,450), remain=budget, spawnedG=false; state.ai.spawnCount=(state.ai.spawnCount||0)+1; let spawned=0;
     while(remain>0 && spawned<slots){
-      const roll=Math.random(); let t;
-      if(roll < 0.65) t='EWarrior';
-      else if(roll < 0.87) t='ECrossbow';
-      else if(state.level>=6 && roll < 0.90) t='EGolemRoll';
-      else if(state.level>=3 && roll < 0.94) t='EGolemPrime';
-      else t='EGolem';
-
-      const cost=Unit.types[t].cost || 60;
-      if(remain-cost<0){ break; }
-      state.entities.push(new Unit('E',t)); remain-=cost; spawned++; if(t==='EGolem'||t==='EGolemPrime'||t==='EGolemRoll') spawnedG=true;
+      const r=Math.random(); let t; if(r<.65) t='EWarrior'; else if(r<.87) t='ECrossbow'; else if(state.level>=6 && r<.90) t='EGolemRoll'; else if(state.level>=3 && r<.94) t='EGolemPrime'; else t='EGolem';
+      const cost=Unit.types[t].cost||60; if(remain-cost<0) break; state.entities.push(new Unit('E',t)); remain-=cost; spawned++; if(t==='EGolem'||t==='EGolemPrime'||t==='EGolemRoll') spawnedG=true;
     }
-    if(!spawnedG && state.ai.spawnCount%6===0 && spawned<slots){ state.entities.push(new Unit('E','EGolem')); }
+    if(!spawnedG && state.ai.spawnCount%6===0 && spawned<slots) state.entities.push(new Unit('E','EGolem'));
   }
 
   /* ===== Miniere ===== */
-  const MINE_W = 64, MINE_H = 46, MINE_GAP = 12;
-  function mineRowY(){ return groundY() + 32; }
-  function minePos(index){
-    const margin = 10;
-    const baseLeft = state.towers.P.x + state.towers.P.w/2 + MINE_W/2 + 10;
-    const maxRight = canvas.width - margin - MINE_W/2;
-    let gap = MINE_GAP;
-    while(baseLeft + index*(MINE_W+gap) > maxRight && gap>4){ gap -= 1; }
-    const x = Math.min(baseLeft + index*(MINE_W+gap), maxRight);
-    return { x, y: mineRowY(), gapUsed: gap };
-  }
-  function layoutMines(){
-    for(let i=0;i<state.mines.length;i++){
-      const p = minePos(i);
-      state.mines[i].x = p.x; state.mines[i].y = p.y;
-      state.mines[i].w = MINE_W; state.mines[i].h = MINE_H;
-    }
-  }
-  function updateMineButtons(){
-    const txtFull = `⛏️ Miniera (${state.minePlaceCost})`;
-    const txtShort= `⛏️ ${state.minePlaceCost}`;
-    label('placeMine', txtFull, txtShort);
-  }
-  function addMine(){
-    if(state.mines.length >= state.maxMines) return;
-    const cost = state.minePlaceCost; if(!canAfford(cost)) return;
-    spend(cost);
-    state.mines.push({ level:0, timer:0, x:0, y:0, w:MINE_W, h:MINE_H });
-    layoutMines();
-    flashBanner('⛏️ Miniera piazzata');
-    updateHUD(); renderMineMenu();
-  }
-  function upgradeMine(i){
-    const m = state.mines[i]; if(!m) return;
-    if(m.level>=3) return;
-    const nextIdx = m.level; const cost = state.mineCosts[nextIdx]; if(!canAfford(cost)) return;
-    spend(cost);
-    m.level += 1;
-    flashBanner(`⛏️ Miniera ${i+1} → Lv${m.level}`);
-    updateHUD(); renderMineMenu();
-  }
+  const MINE_W=64, MINE_H=46, MINE_GAP=12;
+  const mineRowY=()=> groundY()+32;
+  function minePos(i){ const margin=10, baseLeft=state.towers.P.x+state.towers.P.w/2+MINE_W/2+10, maxRight=canvas.width-margin-MINE_W/2; let gap=MINE_GAP; while(baseLeft+i*(MINE_W+gap)>maxRight && gap>4) gap--; const x=Math.min(baseLeft+i*(MINE_W+gap), maxRight); return {x, y:mineRowY()}; }
+  function layoutMines(){ for(let i=0;i<state.mines.length;i++){ const p=minePos(i); state.mines[i].x=p.x; state.mines[i].y=p.y; state.mines[i].w=MINE_W; state.mines[i].h=MINE_H; } }
+  function updateMineButtons(){ setLabel('placeMine', `⛏️ Miniera (${state.minePlaceCost})`, `⛏️ ${state.minePlaceCost}`); }
+  function addMine(){ if(state.mines.length>=state.maxMines) return; const c=state.minePlaceCost; if(!canAfford(c)) return; spend(c); state.mines.push({level:0,timer:0,x:0,y:0,w:MINE_W,h:MINE_H}); layoutMines(); flashBanner('⛏️ Miniera piazzata'); updateHUD(); renderMineMenu(); }
+  function upgradeMine(i){ const m=state.mines[i]; if(!m||m.level>=3) return; const c=state.mineCosts[m.level]; if(!canAfford(c)) return; spend(c); m.level++; flashBanner(`⛏️ Miniera ${i+1} → Lv${m.level}`); updateHUD(); renderMineMenu(); }
   function MineBurst(x,y,amount){ this.x=x; this.y=y; this.amount=amount; this.t=0; this.dur=0.9; }
   MineBurst.prototype.update=function(dt){ this.t+=dt; };
-  MineBurst.prototype.draw=function(){
-    const k=Math.min(1,this.t/this.dur), up=18*k;
-    ctx.save(); ctx.globalCompositeOperation='screen';
-    ctx.globalAlpha=0.6*(1-k); ctx.beginPath(); ctx.arc(this.x, this.y-8-up, 14+10*(1-k), 0, Math.PI*2); ctx.fillStyle='rgba(0,229,255,.22)'; ctx.fill();
-    ctx.globalAlpha=1.0*(1-k); ctx.font='700 16px Inter,system-ui,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='rgba(0,229,255,.95)';
-    ctx.fillText('💰 +'+this.amount, this.x, this.y-8-up); ctx.restore();
-  };
-  function updateMines(dt){
-    for(let i=0;i<state.mines.length;i++){
-      const m = state.mines[i]; m.timer += dt;
-      if(m.timer>=5){
-        m.timer -= 5;
-        const rate = state.mineRates[m.level];
-        state.energyP += rate;
-        state.effects.push(new MineBurst(m.x, m.y- MINE_H/2, rate));
-        pulseHUD();
-      }
-    }
-  }
-  function drawMines(){
-    for(let i=0;i<state.mines.length;i++){
-      const m=state.mines[i];
-      const im = (m.level===0?iM1:iM2 && m.level===1?iM2:iM3);
-      const ready = (m.level===0?iM1.ok():m.level===1?iM2.ok():iM3.ok());
-      const x = m.x - MINE_W/2, y = m.y - MINE_H;
-      if(ready){ ctx.drawImage(im.img, x, y, MINE_W, MINE_H); }
-      else{
-        ctx.fillStyle='rgba(0,229,255,.28)'; ctx.fillRect(x, y, MINE_W, MINE_H);
-        ctx.fillStyle='rgba(10,18,36,.9)'; ctx.fillRect(x+MINE_W*0.25, y+MINE_H*0.45, MINE_W*0.5, MINE_H*0.3);
-      }
-      ctx.save(); ctx.globalCompositeOperation='screen'; ctx.fillStyle='rgba(0,229,255,.12)'; ctx.fillRect(x+4, y+MINE_H+2, MINE_W-8, 8); ctx.restore();
-    }
-  }
+  MineBurst.prototype.draw=function(){ const k=Math.min(1,this.t/this.dur), up=18*k; ctx.save(); ctx.globalCompositeOperation='screen'; ctx.globalAlpha=0.6*(1-k); ctx.beginPath(); ctx.arc(this.x,this.y-8-up,14+10*(1-k),0,Math.PI*2); ctx.fillStyle='rgba(0,229,255,.22)'; ctx.fill(); ctx.globalAlpha=1*(1-k); ctx.font='700 16px Inter,system-ui,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='rgba(0,229,255,.95)'; ctx.fillText('💰 +'+this.amount,this.x,this.y-8-up); ctx.restore(); };
+  function updateMines(dt){ for(let i=0;i<state.mines.length;i++){ const m=state.mines[i]; m.timer+=dt; if(m.timer>=5){ m.timer-=5; const r=state.mineRates[m.level]; state.energyP+=r; state.effects.push(new MineBurst(m.x,m.y-MINE_H/2,r)); pulseHUD(); } } }
+  function drawMines(){ for(let i=0;i<state.mines.length;i++){ const m=state.mines[i]; const im = m.level===0?iM1: (m.level===1?iM2:iM3); const ready = m.level===0?iM1.ok(): (m.level===1?iM2.ok():iM3.ok()); const x=m.x-MINE_W/2,y=m.y-MINE_H; if(ready) ctx.drawImage(im.img,x,y,MINE_W,MINE_H); else{ ctx.fillStyle='rgba(0,229,255,.28)'; ctx.fillRect(x,y,MINE_W,MINE_H); ctx.fillStyle='rgba(10,18,36,.9)'; ctx.fillRect(x+MINE_W*.25,y+MINE_H*.45,MINE_W*.5,MINE_H*.3); } ctx.save(); ctx.globalCompositeOperation='screen'; ctx.fillStyle='rgba(0,229,255,.12)'; ctx.fillRect(x+4,y+MINE_H+2,MINE_W-8,8); ctx.restore(); } }
 
-  /* ===== HUD / Overlay ===== */
-  const energyP=$('energyP');
-  const hpP=$('hpP');
-  const hpE=$('hpE');
-  const speedLbl=$('speedLbl');
-  const lvlLbl=$('lvlLbl');
-  function updateHUD(){
-    if(!energyP) return;
-    energyP.textContent = Math.floor(state.energyP);
-    hpP.textContent = Math.floor(state.towers.P.hp) + '/' + state.towers.P.max;
-    hpE.textContent = Math.floor(state.towers.E.hp) + '/' + state.towers.E.max;
-    speedLbl.textContent = state.speed.toFixed(0) + 'x';
-    lvlLbl.textContent = '' + state.level;
-  }
-  function pulseHUD(){
-    energyP?.parentElement?.animate(
-      [{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],
-      {duration:220,easing:'ease-out'}
-    );
-  }
+  /* ===== HUD ===== */
+  const energyP=$('energyP'), hpP=$('hpP'), hpE=$('hpE'), speedLbl=$('speedLbl'), lvlLbl=$('lvlLbl');
+  function updateHUD(){ energyP.textContent=Math.floor(state.energyP); hpP.textContent=Math.floor(state.towers.P.hp)+'/'+state.towers.P.max; hpE.textContent=Math.floor(state.towers.E.hp)+'/'+state.towers.E.max; speedLbl.textContent=state.speed.toFixed(0)+'x'; lvlLbl.textContent=''+state.level; }
+  function pulseHUD(){ energyP.parentElement.animate([{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:220,easing:'ease-out'}); }
+  const overlay=$('overlay'), endTitle=$('endTitle'), endDesc=$('endDesc');
+  const showOverlay=()=>overlay.style.display='flex', hideOverlay=()=>overlay.style.display='none';
+  function endMatch(){ state.paused=true; const win=(state.towers.E.hp<=0 && state.towers.P.hp>0); endTitle.textContent=win?'VITTORIA ✨':'SCONFITTA 💥'; endDesc.textContent=win?('Hai abbattuto la torre nemica al livello '+state.level+'.'):('La tua torre è stata distrutta al livello '+state.level+'.'); showOverlay(); }
 
-  const overlay=$('overlay');
-  const endTitle=$('endTitle');
-  const endDesc=$('endDesc');
-  function showOverlay(){ if(overlay) overlay.style.display='flex'; }
-  function hideOverlay(){ if(overlay) overlay.style.display='none'; }
-  function endMatch(){
-    state.paused=true;
-    const victory=(state.towers.E.hp<=0 && state.towers.P.hp>0);
-    if(endTitle) endTitle.textContent = victory? 'VITTORIA ✨' : 'SCONFITTA 💥';
-    if(endDesc) endDesc.textContent = victory ? ('Hai abbattuto la torre nemica al livello ' + state.level + '.') : ('La tua torre è stata distrutta al livello ' + state.level + '.');
-    showOverlay();
-  }
-
-  /* ===== Anteprima incantesimi (puntamento) ===== */
+  /* ===== Target preview ===== */
   function drawTargetPreview(){
-    if(!state.targeting || state.aimX==null) return;
-    const y = groundY();
-    const spell = state.targeting.spell;
-    const r = (spell==='fire') ? Math.floor(Unit.types.Wizard.range*2/3) : Unit.types.Wizard.range;
-
+    if(!state.targeting||state.aimX==null) return;
+    const y=groundY(), spell=state.targeting.spell, r=(spell==='fire')? Math.floor(Unit.types.Wizard.range*2/3) : Unit.types.Wizard.range;
     ctx.save(); ctx.globalCompositeOperation='screen';
-    let stroke, fill;
-    if(spell==='lightning'){ stroke='rgba(150,220,255,.95)'; fill='rgba(90,160,255,.08)'; }
-    else if(spell==='fire'){ stroke='rgba(255,160,60,.95)'; fill='rgba(255,120,40,.10)'; }
-    else { stroke='rgba(150,210,255,.95)'; fill='rgba(120,190,255,.10)'; }
+    let stroke,fill; if(spell==='lightning'){stroke='rgba(150,220,255,.95)';fill='rgba(90,160,255,.08)';}
+    else if(spell==='fire'){stroke='rgba(255,160,60,.95)';fill='rgba(255,120,40,.10)';}
+    else{stroke='rgba(150,210,255,.95)';fill='rgba(120,190,255,.10)';}
     ctx.strokeStyle=stroke; ctx.fillStyle=fill; ctx.lineWidth=2;
-    ctx.beginPath(); ctx.arc(state.aimX, y, r, 0, Math.PI*2); ctx.fill(); ctx.stroke();
+    ctx.beginPath(); ctx.arc(state.aimX,y,r,0,Math.PI*2); ctx.fill(); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(state.aimX-12,y); ctx.lineTo(state.aimX+12,y); ctx.moveTo(state.aimX,y-12); ctx.lineTo(state.aimX,y+12); ctx.stroke();
     ctx.restore();
   }
 
-  /* ===== Sfondo/Torri ===== */
+  /* ===== Sfondo & Torri ===== */
   function drawBackground(){
-    const w=canvas.width, h=canvas.height, ground=groundY();
+    const w=canvas.width,h=canvas.height, ground=groundY();
     ctx.clearRect(0,0,w,h);
     if(bg.ok()){
-      const sw=bg.img.width, sh=bg.img.height, scale=Math.max(w/sw, ground/sh), dw=sw*scale, dh=sh*scale, dx=(w-dw)/2, dy=ground-dh;
-      ctx.save(); ctx.beginPath(); ctx.rect(0,0,w,ground); ctx.clip(); ctx.drawImage(bg.img, dx, dy, dw, dh); ctx.restore();
+      const sw=bg.img.width,sh=bg.img.height,sc=Math.max(w/sw, ground/sh), dw=sw*sc, dh=sh*sc, dx=(w-dw)/2, dy=ground-dh;
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,w,ground); ctx.clip(); ctx.drawImage(bg.img,dx,dy,dw,dh); ctx.restore();
     }
     ctx.fillStyle='#0a1224'; ctx.fillRect(0, ground, w, h-ground);
     ctx.save(); ctx.globalCompositeOperation='lighter';
     ctx.strokeStyle='rgba(57,232,255,0.55)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(40,ground); ctx.lineTo(w-40,ground); ctx.stroke(); ctx.restore();
   }
-  function drawTower(t, side){
-    const x=t.x, baseY=t.y, h=t.h; const pack = (side==='P')? tP : tE;
+  function drawTower(t,side){
+    const x=t.x, baseY=t.y, h=t.h, pack=(side==='P')?tP:tE;
     if(pack.ok()){
-      const scale = h / pack.img.height, dw = pack.img.width*scale, dh=h, dx=x-dw/2, dy=baseY-dh;
-      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(pack.img, dx, dy, dw, dh); ctx.restore();
+      const sc=h/pack.img.height, dw=pack.img.width*sc, dh=h, dx=x-dw/2, dy=baseY-dh;
+      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(pack.img,dx,dy,dw,dh); ctx.restore();
     } else {
       ctx.save(); ctx.globalCompositeOperation='screen';
-      ctx.shadowBlur=20; ctx.shadowColor=(side==='P')? '#7af0ff':'#ff9bc0';
-      ctx.fillStyle=(side==='P')? '#44cfff':'#ff6fa3'; ctx.fillRect(x-22, baseY-h, 44, h*0.8); ctx.restore();
+      ctx.shadowBlur=20; ctx.shadowColor=(side==='P')?'#7af0ff':'#ff9bc0';
+      ctx.fillStyle=(side==='P')?'#44cfff':'#ff6fa3'; ctx.fillRect(x-22, baseY-h, 44, h*.8); ctx.restore();
     }
     ctx.fillStyle='rgba(0,0,0,.25)'; ctx.fillRect(x-44, baseY-h-24, 88, 8);
     ctx.fillStyle=(side==='P')? '#20ffa8':'#ff7fa0'; ctx.fillRect(x-44, baseY-h-24, 88*(t.hp/t.max), 8);
@@ -953,32 +586,29 @@
   /* ===== Loop ===== */
   function tick(now){
     const raw=(now-state.last)/1000; state.last=now;
-    const dt=clamp(raw,0,1/15) * (state.paused?0:state.speed);
+    const dt=clamp(raw,0,1/15)*(state.paused?0:state.speed);
     state.dt=dt; state.time+=dt;
-
-    // Flusso energia (senza decrescita)
-    state.incomeFall = 1;
 
     updateMines(dt);
 
-    state.ai.timer -= dt;
-    while(state.ai.timer<=0){ spawnEnemy(); state.ai.timer += state.ai.cadence; }
+    state.ai.timer-=dt;
+    while(state.ai.timer<=0){ spawnEnemy(); state.ai.timer+=state.ai.cadence; }
 
-    for(let i=0;i<state.entities.length;i++){ state.entities[i].update(dt); }
-    state.entities = state.entities.filter(u=>u.hp>0);
+    for(let i=0;i<state.entities.length;i++) state.entities[i].update(dt);
+    state.entities=state.entities.filter(u=>u.hp>0);
 
-    for(let j=0;j<state.projectiles.length;j++){ state.projectiles[j].update(dt); }
-    state.projectiles = state.projectiles.filter(p=>!p.dead);
+    for(let j=0;j<state.projectiles.length;j++) state.projectiles[j].update(dt);
+    state.projectiles=state.projectiles.filter(p=>!p.dead);
 
-    for(let j=0;j<state.effects.length;j++){ state.effects[j].update(dt); }
-    state.effects = state.effects.filter(e=> e.t < e.dur );
+    for(let j=0;j<state.effects.length;j++) state.effects[j].update(dt);
+    state.effects=state.effects.filter(e=>e.t<e.dur);
 
     drawBackground();
     drawTower(state.towers.P,'P'); drawTower(state.towers.E,'E');
     layoutMines(); drawMines();
-    for(let j=0;j<state.projectiles.length;j++){ state.projectiles[j].draw(); }
-    for(let i=0;i<state.entities.length;i++){ state.entities[i].draw(); }
-    for(let j=0;j<state.effects.length;j++){ state.effects[j].draw(); }
+    for(let j=0;j<state.projectiles.length;j++) state.projectiles[j].draw();
+    for(let i=0;i<state.entities.length;i++) state.entities[i].draw();
+    for(let j=0;j<state.effects.length;j++) state.effects[j].draw();
     drawTargetPreview();
 
     updateHUD();
@@ -986,12 +616,18 @@
   }
 
   /* ===== UI ===== */
+  function setLabel(id, fullTxt, shortTxt){
+    const el=$(id); if(!el) return;
+    const compact = canvas.width < 540;    // su telefoni piccoli: solo icona + costo
+    el.textContent = compact ? shortTxt : fullTxt;
+    if(compact) el.title = fullTxt;
+  }
   function updateSpawnButtons(){
-    label('spawnWarrior', `🗡️ Guerriero (${currentUnitCost('Warrior')})`, `🗡️ ${currentUnitCost('Warrior')}`);
-    label('spawnCrossbow', `🏹 Balestriere (${currentUnitCost('Crossbow')})`, `🏹 ${currentUnitCost('Crossbow')}`);
-    label('spawnGolem', `🗿 Golem (${currentUnitCost('Golem')})`, `🗿 ${currentUnitCost('Golem')}`);
-    label('spawnWizard', `🧙‍♂️ Mago (${currentUnitCost('Wizard')})`, `🧙 ${currentUnitCost('Wizard')}`);
-    label('spawnBabyWizard', `🧙‍♂️✨ Baby Mago Blu (${currentUnitCost('BabyWizard')})`, `✨ ${currentUnitCost('BabyWizard')}`);
+    setLabel('spawnWarrior', '🗡️ Guerriero ('+currentUnitCost('Warrior')+')', '🗡️ '+currentUnitCost('Warrior'));
+    setLabel('spawnCrossbow','🏹 Balestriere ('+currentUnitCost('Crossbow')+')','🏹 '+currentUnitCost('Crossbow'));
+    setLabel('spawnGolem',   '🗿 Golem ('+currentUnitCost('Golem')+')',        '🗿 '+currentUnitCost('Golem'));
+    setLabel('spawnWizard',  '🧙‍♂️ Mago ('+currentUnitCost('Wizard')+')',      '🧙 '+currentUnitCost('Wizard'));
+    setLabel('spawnBabyWizard','🧙‍♂️✨ Baby Mago Blu ('+currentUnitCost('BabyWizard')+')','✨ '+currentUnitCost('BabyWizard'));
   }
   on($('spawnWarrior'),'click',()=>spawnPlayer('Warrior'));
   on($('spawnCrossbow'),'click',()=>spawnPlayer('Crossbow'));
@@ -999,283 +635,147 @@
   on($('spawnWizard'),'click',()=>spawnPlayer('Wizard'));
   on($('spawnBabyWizard'),'click',()=>spawnPlayer('BabyWizard'));
 
-  const barEl  = $('bar');
-
-  /* ===== Menu Potenziamenti ===== */
-  const upMenu = $('upMenu');
-
-  function nextCost(type){ const info=UP[type], lvl=state.unitUp[type].lvl; return Math.floor(info.base*Math.pow(info.step,lvl)); }
-  function globalCost(which){
-    const base = (which==='dmg') ? 150 : 200;
-    const step = (which==='dmg') ? 1.25 : 1.28;
-    const t = (which==='dmg') ? state.globalUp.dmg : state.globalUp.inc;
-    return Math.floor(base * Math.pow(step, t));
-  }
-  function spellNextCost(key){
-    const info=SPELL_UP[key], lvl=state.spells[key].lvl;
-    return Math.floor(info.base*Math.pow(info.step,lvl));
-  }
-  function currentDamage(type){
-    const u = state.unitUp[type] || {dmg:1};
-    return Unit.types[type].damage * u.dmg * state.dmgMulP;
-  }
-  function currentHp(type){
-    const u = state.unitUp[type] || {hp:1};
-    return Unit.types[type].hp * u.hp;
-  }
+  /* ===== Menù Potenziamenti + Incantesimi + Miniere ===== */
+  const upMenu=$('upMenu'), spMenu=$('spellMenu'), mineMenu=$('mineMenu');
 
   function openMenuAt(menu, anchorBtn){
-    if(!menu || !barEl || !anchorBtn) return;
-    const r = anchorBtn.getBoundingClientRect();
-    const parentR = barEl.getBoundingClientRect();
-    menu.style.left = (r.left - parentR.left) + 'px';
-    menu.style.top  = (r.bottom - parentR.top + 6) + 'px';
+    if(!menu||!anchorBtn) return;
+    const r=anchorBtn.getBoundingClientRect();
+    const left = Math.min(window.innerWidth-320, Math.max(8, r.left));
+    const top  = Math.max(8, r.top - 10 - menu.offsetHeight);
+    menu.style.left = left + 'px';
+    menu.style.top  = top + 'px';
     menu.style.display='block';
     menu.setAttribute('aria-hidden','false');
   }
   function closeMenuEl(menu){ if(!menu) return; menu.style.display='none'; menu.setAttribute('aria-hidden','true'); }
   function toggleMenuAt(menu, anchorBtn){ (menu && menu.style.display==='block')? closeMenuEl(menu): openMenuAt(menu,anchorBtn); }
 
-  function renderUpMenu(){
-    if(!upMenu) return;
-    let html = '';
+  const nextCost=(t)=>Math.floor(UP[t].base*Math.pow(UP[t].step, state.unitUp[t].lvl));
+  function globalCost(which){ const base=(which==='dmg')?150:200, step=(which==='dmg')?1.25:1.28, t=(which==='dmg')?state.globalUp.dmg:state.globalUp.inc; return Math.floor(base*Math.pow(step,t)); }
+  const spellNextCost=(k)=>Math.floor(SPELL_UP[k].base*Math.pow(SPELL_UP[k].step,state.spells[k].lvl));
+  const currentDamage=(t)=>Unit.types[t].damage*(state.unitUp[t]?.dmg||1)*state.dmgMulP;
+  const currentHp=(t)=>Unit.types[t].hp*(state.unitUp[t]?.hp||1);
 
-    function unitRow(key, label){
-      const u = state.unitUp[key];
-      const lvl = u.lvl;
-      const costTxt = (lvl>=MAX_UNIT_LVL)? 'MAX' : nextCost(key);
-      html += `<button class="item" data-unit="${key}" ${lvl>=MAX_UNIT_LVL?'aria-disabled="true"':''}>
+  function renderUpMenu(){
+    let html='';
+    const unitRow=(key,label)=>{
+      const u=state.unitUp[key], lvl=u.lvl, costTxt=(lvl>=MAX_UNIT_LVL)?'MAX':nextCost(key);
+      html+=`<button class="item" data-unit="${key}" ${lvl>=MAX_UNIT_LVL?'aria-disabled="true"':''}>
         ${label} +12% DMG / +14% HP • Lv${lvl} (${costTxt})
         <span class="sub">HP: ${format(currentHp(key))} • DMG: ${format(currentDamage(key))}</span>
       </button>`;
-    }
-    unitRow('Warrior','Guerriero');
-    unitRow('Crossbow','Balestriere');
-    unitRow('Golem','Golem');
-    unitRow('Wizard','Mago');
-    unitRow('BabyWizard','Baby Mago Blu');
-
-    html += '<hr/>';
-
-    // Globali: +1%
-    html += `<button id="upDmg" class="item">⬆️ Danno Globale +1% (${globalCost('dmg')})</button>`;
-    html += `<button id="upInc" class="item">💹 Entrate +1% (${globalCost('inc')})</button>`;
-
-    html += '<hr/>';
-
-    // INCANTESIMI dentro lo stesso menu
-    function spellRow(key,label){
-      const s = state.spells[key];
-      const lvl = s.lvl;
-      const costTxt = (lvl>=MAX_SPELL_LVL)? 'MAX' : spellNextCost(key);
-      let sub='';
-      if(key==='lightning'){
-        sub = `Danno: ${Math.round(s.dmg * s.mul)} • Cast: ${currentSpellCost('lightning')}`;
-      }else if(key==='fire'){
-        const imp = Math.round(s.impact * s.mul);
-        const dps = Math.round(s.dot * s.mul);
-        sub = `Impatto: ${imp} • Brucia: ${dps}/s × ${s.dotDur + 2*lvl}s • Cast: ${currentSpellCost('fire')}`;
-      }else{
-        const effFactor = Math.max(0.2, s.factor * Math.pow(0.96, lvl));
-        const effDur = s.dur + 2*lvl;
-        sub = `Rallenta ×${effFactor.toFixed(2)} • Durata: ${effDur}s • Cast: ${currentSpellCost('slow')}`;
-      }
-      html += `<button class="item" data-spell="${key}" ${lvl>=MAX_SPELL_LVL?'aria-disabled="true"':''}>
+    };
+    unitRow('Warrior','Guerriero'); unitRow('Crossbow','Balestriere'); unitRow('Golem','Golem'); unitRow('Wizard','Mago'); unitRow('BabyWizard','Baby Mago Blu');
+    html+='<hr/>';
+    html+=`<button id="upDmg" class="item">⬆️ Danno Globale +1% (${globalCost('dmg')})</button>`;
+    html+=`<button id="upInc" class="item">💹 Entrate +1% (${globalCost('inc')})</button>`;
+    html+='<hr/>';
+    const spellRow=(key,label)=>{
+      const s=state.spells[key], lvl=s.lvl, costTxt=(lvl>=MAX_SPELL_LVL)?'MAX':spellNextCost(key); let sub='';
+      if(key==='lightning'){ sub=`Danno: ${Math.round(s.dmg*s.mul)} • Cast: ${currentSpellCost('lightning')}`; }
+      else if(key==='fire'){ const imp=Math.round(s.impact*s.mul), dps=Math.round(s.dot*s.mul); sub=`Impatto: ${imp} • Brucia: ${dps}/s × ${s.dotDur+2*lvl}s • Cast: ${currentSpellCost('fire')}`; }
+      else{ const f=Math.max(0.2, s.factor*Math.pow(0.96,lvl)), d=s.dur+2*lvl; sub=`Rallenta ×${f.toFixed(2)} • Durata: ${d}s • Cast: ${currentSpellCost('slow')}`; }
+      html+=`<button class="item" data-spell="${key}" ${lvl>=MAX_SPELL_LVL?'aria-disabled="true"':''}>
         ${label} +${Math.round(SPELL_UP[key].bonus*100)}% • Lv${lvl} (${costTxt})
         <span class="sub">${sub}</span>
       </button>`;
-    }
-    spellRow('lightning','⚡ Fulmine');
-    spellRow('fire','🔥 Fuoco');
-    spellRow('slow','🧊 Gelo');
-
-    upMenu.innerHTML = html;
-
-    // bind unit
-    upMenu.querySelectorAll('[data-unit]').forEach(btn=>{
-      const key = btn.getAttribute('data-unit');
-      btn.onclick = (e)=>{ e.stopPropagation(); upgradeUnit(key); };
-    });
-    // bind spell
-    upMenu.querySelectorAll('[data-spell]').forEach(btn=>{
-      const key = btn.getAttribute('data-spell');
-      btn.onclick = (e)=>{ e.stopPropagation(); upgradeSpell(key); };
-    });
-
-    // bind globali
-    const bD = upMenu.querySelector('#upDmg');
-    const bI = upMenu.querySelector('#upInc');
-    if(bD) bD.onclick = (e)=>{
-      e.stopPropagation();
-      const cost = globalCost('dmg'); if(!canAfford(cost)) return;
-      spend(cost); state.dmgMulP = +(state.dmgMulP + 0.01).toFixed(6);
-      state.globalUp.dmg++; flashBanner('Danno Globale +1%'); renderUpMenu(); updateHUD();
     };
-    if(bI) bI.onclick = (e)=>{
-      e.stopPropagation();
-      const cost = globalCost('inc'); if(!canAfford(cost)) return;
-      spend(cost); state.incomeMulP = +(state.incomeMulP + 0.01).toFixed(6);
-      state.globalUp.inc++; flashBanner('Entrate +1%'); renderUpMenu(); updateHUD();
-    };
+    spellRow('lightning','⚡ Fulmine'); spellRow('fire','🔥 Fuoco'); spellRow('slow','🧊 Gelo');
+    upMenu.innerHTML=html;
+
+    upMenu.querySelectorAll('[data-unit]').forEach(b=>{ const k=b.getAttribute('data-unit'); b.onclick=(e)=>{ e.stopPropagation(); upgradeUnit(k); }; });
+    upMenu.querySelectorAll('[data-spell]').forEach(b=>{ const k=b.getAttribute('data-spell'); b.onclick=(e)=>{ e.stopPropagation(); upgradeSpell(k); }; });
+    const bD=upMenu.querySelector('#upDmg'), bI=upMenu.querySelector('#upInc');
+    if(bD) bD.onclick=(e)=>{ e.stopPropagation(); const c=globalCost('dmg'); if(!canAfford(c)) return; spend(c); state.dmgMulP=+(state.dmgMulP+0.01).toFixed(6); state.globalUp.dmg++; flashBanner('Danno Globale +1%'); renderUpMenu(); updateHUD(); };
+    if(bI) bI.onclick=(e)=>{ e.stopPropagation(); const c=globalCost('inc'); if(!canAfford(c)) return; spend(c); state.incomeMulP=+(state.incomeMulP+0.01).toFixed(6); state.globalUp.inc++; flashBanner('Entrate +1%'); renderUpMenu(); updateHUD(); };
   }
-
   function upgradeUnit(type){
-    const obj=state.unitUp[type];
-    if(obj.lvl>=MAX_UNIT_LVL){ flashBanner('Livello massimo raggiunto'); return; }
+    const obj=state.unitUp[type]; if(obj.lvl>=MAX_UNIT_LVL) return flashBanner('Livello massimo raggiunto');
     const cost=nextCost(type); if(!canAfford(cost)) return;
     spend(cost);
-    obj.lvl += 1;
-    obj.dmg = +(obj.dmg * (1+UP[type].bonusD)).toFixed(6);
-    obj.hp  = +(obj.hp  * (1+UP[type].bonusH)).toFixed(6);
+    obj.lvl++; obj.dmg=+(obj.dmg*(1+UP[type].bonusD)).toFixed(6); obj.hp=+(obj.hp*(1+UP[type].bonusH)).toFixed(6);
     flashBanner((type==='BabyWizard'?'Baby Mago Blu':type)+' potenziato! (+DMG/+HP)');
     renderUpMenu(); updateHUD(); updateSpawnButtons();
   }
-
   function upgradeSpell(key){
-    const s = state.spells[key];
-    if(s.lvl>=MAX_SPELL_LVL){ flashBanner('Incantesimo al livello massimo'); return; }
-    const cost = spellNextCost(key); if(!canAfford(cost)) return;
-    spend(cost);
-    s.lvl += 1;
-    if(key!=='slow'){ s.mul = +(s.mul * (1+SPELL_UP[key].bonus)).toFixed(6); }
-    flashBanner(`${(key==='lightning'?'Fulmine':key==='fire'?'Fuoco':'Gelo')} Lv${s.lvl}`);
+    const s=state.spells[key]; if(s.lvl>=MAX_SPELL_LVL) return flashBanner('Incantesimo al livello massimo');
+    const cost=spellNextCost(key); if(!canAfford(cost)) return;
+    spend(cost); s.lvl++; if(key!=='slow') s.mul=+(s.mul*(1+SPELL_UP[key].bonus)).toFixed(6);
+    flashBanner((key==='lightning'?'Fulmine':key==='fire'?'Fuoco':'Gelo')+' Lv'+s.lvl);
     renderUpMenu(); updateSpellLabels(); updateHUD();
   }
 
-  on($('btnUpgrades'),'click', (e)=>{ e.stopPropagation(); renderUpMenu(); toggleMenuAt(upMenu,$('btnUpgrades')); });
+  on($('btnUpgrades'),'click',e=>{ e.stopPropagation(); renderUpMenu(); toggleMenuAt(upMenu,$('btnUpgrades')); });
 
-  /* ===== Incantesimi: menu uso ===== */
-  const spMenu = $('spellMenu');
-
+  /* ===== Menu Incantesimi ===== */
   function ensureSpellMenu(){
-    if(!spMenu || spMenu.dataset.ready==='1') return;
-    spMenu.dataset.ready='1';
-    function make(id){
-      const b=document.createElement('button');
-      b.id=id; b.className='item';
-      b.innerHTML = `<span class="label"></span><span class="sub"></span>`;
-      spMenu.appendChild(b);
-    }
+    if(spMenu.dataset.ready==='1') return; spMenu.dataset.ready='1';
+    const make=id=>{ const b=document.createElement('button'); b.id=id; b.className='item'; b.innerHTML=`<span class="label"></span><span class="sub"></span>`; spMenu.appendChild(b); };
     make('spLightning'); make('spFire'); make('spSlow');
 
-    const bL=$('spLightning'), bF=$('spFire'), bS=$('spSlow');
-    on(bL,'click', (e)=>{
-      e.stopPropagation(); closeMenuEl(spMenu);
-      if(state.level < state.spells.lightning.unlockLvl) return;
-      const cost = currentSpellCost('lightning'); if(!canAfford(cost)) return;
-      spend(cost); state.targeting = { spell:'lightning', cost:cost };
-      state.aimX = null; canvas.classList.add('aim'); flashBanner('⚡ Fulmine pronto — tocca un punto'); updateHUD();
-    });
-    on(bF,'click', (e)=>{
-      e.stopPropagation(); closeMenuEl(spMenu);
-      if(state.level < state.spells.fire.unlockLvl) return;
-      const cost = currentSpellCost('fire'); if(!canAfford(cost)) return;
-      spend(cost); state.targeting = { spell:'fire', cost:cost };
-      state.aimX = null; canvas.classList.add('aim'); flashBanner('🔥 Fuoco pronto — tocca un punto'); updateHUD();
-    });
-    on(bS,'click', (e)=>{
-      e.stopPropagation(); closeMenuEl(spMenu);
-      if(state.level < state.spells.slow.unlockLvl) return;
-      const cost = currentSpellCost('slow'); if(!canAfford(cost)) return;
-      spend(cost); state.targeting = { spell:'slow', cost:cost };
-      state.aimX = null; canvas.classList.add('aim'); flashBanner('🧊 Gelo pronto — tocca un punto'); updateHUD();
-    });
+    $('spLightning').onclick=(e)=>{ e.stopPropagation(); closeMenuEl(spMenu);
+      if(state.level<state.spells.lightning.unlockLvl) return;
+      const c=currentSpellCost('lightning'); if(!canAfford(c)) return; spend(c);
+      state.targeting={spell:'lightning',cost:c}; state.aimX=null; canvas.classList.add('aim');
+      flashBanner('⚡ Fulmine pronto — tocca un punto'); updateHUD();
+    };
+    $('spFire').onclick=(e)=>{ e.stopPropagation(); closeMenuEl(spMenu);
+      if(state.level<state.spells.fire.unlockLvl) return;
+      const c=currentSpellCost('fire'); if(!canAfford(c)) return; spend(c);
+      state.targeting={spell:'fire',cost:c}; state.aimX=null; canvas.classList.add('aim');
+      flashBanner('🔥 Fuoco pronto — tocca un punto'); updateHUD();
+    };
+    $('spSlow').onclick=(e)=>{ e.stopPropagation(); closeMenuEl(spMenu);
+      if(state.level<state.spells.slow.unlockLvl) return;
+      const c=currentSpellCost('slow'); if(!canAfford(c)) return; spend(c);
+      state.targeting={spell:'slow',cost:c}; state.aimX=null; canvas.classList.add('aim');
+      flashBanner('🧊 Gelo pronto — tocca un punto'); updateHUD();
+    };
   }
-
   function updateSpellLabels(){
     ensureSpellMenu();
-    const b = $('spLightning');
-    const unlock2 = state.level >= state.spells.lightning.unlockLvl;
-    if(b){
-      b.setAttribute('aria-disabled', unlock2 ? 'false' : 'true');
-      b.querySelector('.label').textContent = (unlock2 ? '⚡ Fulmine' : '⚡ Fulmine — L2') + ` • (${currentSpellCost('lightning')})`;
-      b.querySelector('.sub').textContent = `Danno ${Math.round(state.spells.lightning.dmg * state.spells.lightning.mul)} • Area = range Mago`;
-    }
-
-    const f = $('spFire');
-    const unlock4 = state.level >= state.spells.fire.unlockLvl;
-    if(f){
-      f.setAttribute('aria-disabled', unlock4 ? 'false' : 'true');
-      f.querySelector('.label').textContent = (unlock4 ? '🔥 Fuoco' : '🔥 Fuoco — L4') + ` • (${currentSpellCost('fire')})`;
-      const fireDps = Math.round(state.spells.fire.dot * state.spells.fire.mul);
-      const fireImp = Math.round(state.spells.fire.impact * state.spells.fire.mul);
-      f.querySelector('.sub').textContent = `Impatto ${fireImp} • AoE 2/3 • Brucia ${fireDps}/s per ${state.spells.fire.dotDur + 2*state.spells.fire.lvl}s`;
-    }
-
-    const s = $('spSlow');
-    const unlock6 = state.level >= state.spells.slow.unlockLvl;
-    if(s){
-      s.setAttribute('aria-disabled', unlock6 ? 'false' : 'true');
-      const effFactor = Math.max(0.2, state.spells.slow.factor * Math.pow(0.96, state.spells.slow.lvl));
-      const effDur = state.spells.slow.dur + 2*state.spells.slow.lvl;
-      s.querySelector('.label').textContent = (unlock6 ? '🧊 Gelo' : '🧊 Gelo — L6') + ` • (${currentSpellCost('slow')})`;
-      s.querySelector('.sub').textContent = `Rallenta ×${effFactor.toFixed(2)} per ${effDur}s (area = range Mago)`;
-    }
+    const L=$('spLightning'), F=$('spFire'), S=$('spSlow');
+    const u2=state.level>=state.spells.lightning.unlockLvl, u4=state.level>=state.spells.fire.unlockLvl, u6=state.level>=state.spells.slow.unlockLvl;
+    if(L){ L.setAttribute('aria-disabled',u2?'false':'true'); L.querySelector('.label').textContent=(u2?'⚡ Fulmine':'⚡ Fulmine — L2')+` • (${currentSpellCost('lightning')})`; L.querySelector('.sub').textContent=`Danno ${Math.round(state.spells.lightning.dmg*state.spells.lightning.mul)} • Area = range Mago`; }
+    if(F){ F.setAttribute('aria-disabled',u4?'false':'true'); F.querySelector('.label').textContent=(u4?'🔥 Fuoco':'🔥 Fuoco — L4')+` • (${currentSpellCost('fire')})`; const dps=Math.round(state.spells.fire.dot*state.spells.fire.mul), imp=Math.round(state.spells.fire.impact*state.spells.fire.mul); F.querySelector('.sub').textContent=`Impatto ${imp} • AoE 2/3 • Brucia ${dps}/s per ${state.spells.fire.dotDur + 2*state.spells.fire.lvl}s`; }
+    if(S){ S.setAttribute('aria-disabled',u6?'false':'true'); const f=Math.max(0.2, state.spells.slow.factor*Math.pow(0.96,state.spells.slow.lvl)); const d=state.spells.slow.dur+2*state.spells.slow.lvl; S.querySelector('.label').textContent=(u6?'🧊 Gelo':'🧊 Gelo — L6')+` • (${currentSpellCost('slow')})`; S.querySelector('.sub').textContent=`Rallenta ×${f.toFixed(2)} per ${d}s (area = range Mago)`; }
   }
-  on($('btnSpells'),'click', (e)=>{ e.stopPropagation(); updateSpellLabels(); toggleMenuAt(spMenu,$('btnSpells')); });
-
-  /* ===== Puntamento incantesimi — TOUCH/pointer ===== */
-  function setAimFromEvent(ev){
-    const rect = canvas.getBoundingClientRect();
-    state.aimX = clamp((ev.clientX ?? (ev.touches && ev.touches[0]?.clientX) ?? 0) - rect.left, 12, canvas.width-12);
-  }
-  on(canvas,'pointermove',(ev)=>{ if(!state.targeting) return; setAimFromEvent(ev); ev.preventDefault(); }, {passive:false});
-  on(canvas,'pointerdown',(ev)=>{
-    if(!state.targeting) return; ev.preventDefault();
-    const rect = canvas.getBoundingClientRect();
-    const x = clamp((ev.clientX ?? 0) - rect.left, 12, canvas.width-12);
-    if(state.targeting.spell==='lightning'){
-      const dmg = state.spells.lightning.dmg * state.spells.lightning.mul * state.dmgMulP;
-      const radius = Unit.types.Wizard.range;
-      state.projectiles.push(new Projectile(x, -120, 0, 'P', dmg, 'lightning', false, { vy:1100, radius }));
-    }else if(state.targeting.spell==='fire'){
-      const dmg0 = state.spells.fire.impact * state.spells.fire.mul * state.dmgMulP;
-      const radiusF = Math.floor(Unit.types.Wizard.range*2/3);
-      state.projectiles.push(new Projectile(x, -120, 0, 'P', dmg0, 'fireSpell', false, { vy:900, radius: radiusF }));
-    }else if(state.targeting.spell==='slow'){
-      const radiusS = Unit.types.Wizard.range;
-      state.projectiles.push(new Projectile(x, -120, 0, 'P', 0, 'slowSpell', false, { vy:900, radius: radiusS }));
-    }
-    state.targeting=null; state.aimX=null;
-    canvas.classList.remove('aim');
-  }, {passive:false});
+  on($('btnSpells'),'click', e=>{ e.stopPropagation(); updateSpellLabels(); toggleMenuAt(spMenu,$('btnSpells')); });
 
   /* ===== Menu Miniere ===== */
-  const mineMenu = $('mineMenu');
   function renderMineMenu(){
-    if(!mineMenu) return;
-    let html = '';
+    let html='';
     if(state.mines.length===0){
       html += `<div class="item" aria-disabled="true">Nessuna miniera<span class="sub">Usa “⛏️ Miniera (${state.minePlaceCost})” per costruire</span></div>`;
     }else{
       for(let i=0;i<state.mines.length;i++){
-        const m = state.mines[i];
-        const nextCostTxt = (m.level>=3) ? 'MAX' : state.mineCosts[m.level] + '';
-        const rate = state.mineRates[m.level];
+        const m=state.mines[i];
+        const nextCostTxt=(m.level>=3)?'MAX':state.mineCosts[m.level]+'';
+        const rate=state.mineRates[m.level];
         html += `<button class="item" data-idx="${i}" ${m.level>=3?'aria-disabled="true"':''}>
           ⛏️ Miniera ${i+1} — Lv${m.level} • ${m.level>=3?'—':('Up '+nextCostTxt)}
           <span class="sub">Rendimento: ${rate}/5s — Pos: ${i+1}/${state.maxMines}</span>
         </button>`;
       }
     }
-    mineMenu.innerHTML = html;
+    mineMenu.innerHTML=html;
     mineMenu.querySelectorAll('button.item').forEach(btn=>{
-      const i = +btn.getAttribute('data-idx');
-      if(!isNaN(i)){ btn.onclick = (e)=>{ e.stopPropagation(); upgradeMine(i); }; }
+      const i=+btn.getAttribute('data-idx'); if(!isNaN(i)){ btn.onclick=(e)=>{ e.stopPropagation(); upgradeMine(i); }; }
     });
   }
-  on($('btnMines'),'click',(e)=>{ e.stopPropagation(); renderMineMenu(); toggleMenuAt(mineMenu, $('btnMines')); });
+  on($('btnMines'),'click', e=>{ e.stopPropagation(); renderMineMenu(); toggleMenuAt(mineMenu,$('btnMines')); });
   on($('placeMine'),'click', ()=> addMine());
 
-  /* ===== Chiusura menu click fuori ===== */
-  on(document,'click',(e)=>{
-    if(upMenu?.style.display==='block' && !upMenu.contains(e.target) && e.target!==$('btnUpgrades')){ closeMenuEl(upMenu); }
-    if(spMenu?.style.display==='block' && !spMenu.contains(e.target) && e.target!==$('btnSpells')){ closeMenuEl(spMenu); }
-    if(mineMenu?.style.display==='block' && !mineMenu.contains(e.target) && e.target!==$('btnMines')){ closeMenuEl(mineMenu); }
+  /* ===== Click fuori per chiudere menu ===== */
+  document.addEventListener('click', function(e){
+    if(upMenu.style.display==='block' && !upMenu.contains(e.target) && e.target!==$('btnUpgrades')) closeMenuEl(upMenu);
+    if(spMenu.style.display==='block' && !spMenu.contains(e.target) && e.target!==$('btnSpells')) closeMenuEl(spMenu);
+    if(mineMenu.style.display==='block' && !mineMenu.contains(e.target) && e.target!==$('btnMines')) closeMenuEl(mineMenu);
   });
 
-  /* ===== ESC ===== */
-  on(document,'keydown',(e)=>{
+  /* ===== ESC e annulla targeting ===== */
+  document.addEventListener('keydown', function(e){
     if(e.key==='Escape'){
       closeMenuEl(upMenu); closeMenuEl(spMenu); closeMenuEl(mineMenu);
       if(state.targeting){
@@ -1286,26 +786,44 @@
     }
   });
 
-  /* ===== Controlli generali (fino a 4x) ===== */
-  const spdBtn = $('toggleSpeed');
+  /* ===== Puntamento incantesimi ===== */
+  function setAimFromEvent(ev){
+    const rect=canvas.getBoundingClientRect();
+    const x = (ev.touches && ev.touches[0]) ? ev.touches[0].clientX : ev.clientX;
+    state.aimX = clamp(x - rect.left, 12, canvas.width-12);
+  }
+  canvas.addEventListener('pointermove', function(ev){ if(!state.targeting) return; setAimFromEvent(ev); ev.preventDefault(); }, {passive:false});
+  canvas.addEventListener('pointerdown', function(ev){
+    if(!state.targeting) return; ev.preventDefault();
+    const rect=canvas.getBoundingClientRect();
+    const x=clamp(ev.clientX - rect.left, 12, canvas.width-12);
+    if(state.targeting.spell==='lightning'){
+      const dmg=state.spells.lightning.dmg*state.spells.lightning.mul*state.dmgMulP;
+      const radius=Unit.types.Wizard.range;
+      state.projectiles.push(new Projectile(x, -120, 0, 'P', dmg, 'lightning', false, {vy:1100, radius}));
+    }else if(state.targeting.spell==='fire'){
+      const dmg0=state.spells.fire.impact*state.spells.fire.mul*state.dmgMulP;
+      const radiusF=Math.floor(Unit.types.Wizard.range*2/3);
+      state.projectiles.push(new Projectile(x, -120, 0, 'P', dmg0, 'fireSpell', false, {vy:900, radius: radiusF}));
+    }else if(state.targeting.spell==='slow'){
+      const radiusS=Unit.types.Wizard.range;
+      state.projectiles.push(new Projectile(x, -120, 0, 'P', 0, 'slowSpell', false, {vy:900, radius: radiusS}));
+    }
+    state.targeting=null; state.aimX=null; canvas.classList.remove('aim');
+  }, {passive:false});
+
+  /* ===== Controlli generali ===== */
+  const spdBtn=$('toggleSpeed');
   function setSpeed(v){
-    state.speed = v;
-    if(spdBtn) spdBtn.textContent = (v===1) ? '⚡ 2x' : (v===2 ? '⚡ 4x' : '⚡ 1x');
+    state.speed=v;
+    spdBtn.textContent = (v===1) ? '⚡ 2x' : (v===2 ? '⚡ 4x' : '⚡ 1x');
     updateHUD();
   }
-  on(spdBtn,'click', ()=> setSpeed(state.speed===1 ? 2 : (state.speed===2 ? 4 : 1)) );
-  on($('togglePause'),'click', ()=> state.paused = !state.paused );
-  on($('nextLvl'),'click', ()=> nextLevel() );
-  on($('restartBtn'),'click', ()=> reset() );
-  on($('contBtn'),'click', ()=> reset() );
-
-  /* Pulsanti superiori con etichette compatte */
-  function updateTopButtons(){
-    label('btnUpgrades', '🛠️ Potenziamenti', '🛠️');
-    label('btnSpells', '✨ Incantesimi', '✨');
-    label('btnMines', '📦 Miniere', '📦');
-    label('nextLvl', '▶️ Prossima Ondata', '▶️');
-  }
+  on(spdBtn,'click', ()=> setSpeed(state.speed===1 ? 2 : (state.speed===2 ? 4 : 1)));
+  on($('togglePause'),'click', ()=> state.paused=!state.paused);
+  on($('nextLvl'),'click', ()=> nextLevel());
+  on($('restartBtn'),'click', ()=> reset());
+  on($('contBtn'),'click', ()=> reset());
 
   /* ===== Banner ===== */
   function flashBanner(text){
@@ -1321,26 +839,46 @@
     el.style.boxShadow='0 10px 40px rgba(0,0,0,.5)'; el.style.zIndex='10'; el.style.opacity='0.0';
     wrap.appendChild(el);
     el.animate(
-      [{opacity:0, transform:'translate(-50,-50) scale(.96)'},
-       {opacity:1, transform:'translate(-50,-50) scale(1)'},
-       {opacity:0, transform:'translate(-50,-50) scale(1.04)'}],
+      [{opacity:0, transform:'translate(-50%,-50%) scale(.96)'},
+       {opacity:1, transform:'translate(-50%,-50%) scale(1)'},
+       {opacity:0, transform:'translate(-50%,-50%) scale(1.04)'}],
       {duration:1100, easing:'ease'}
     ).onfinish=()=> el.remove();
+  }
+
+  /* ===== Reset partita ===== */
+  function reset(){
+    resize();
+    state.entities.length=0; state.projectiles.length=0; state.effects.length=0;
+    state.time=0; state.last=performance.now(); state.dt=0; state.speed=1; state.paused=false;
+    state.level=1; state.incomeP=6; state.incomeE=6; state.energyP=180; state.energyE=180;
+    state.dmgMulP=1; state.incomeMulP=1; state.unitSpeedMul=0.35;
+
+    state.towers.P.max=1200; state.towers.E.max=1200;
+    state.towers.P.hp=1200;  state.towers.E.hp=1200;
+
+    state.ai.timer=0; state.ai.cadence=3.2; state.ai.spawnCount=0; state.maxEnemies=22;
+    state.targeting=null; state.aimX=null;
+
+    state.mines=[];
+
+    state.spells.lightning.lvl=0; state.spells.lightning.mul=1.00;
+    state.spells.fire.lvl=0; state.spells.fire.mul=1.00;
+    state.spells.slow.lvl=0; state.spells.slow.mul=1.00;
+
+    const g=groundY();
+    state.towers.P.y=g; state.towers.E.y=g; state.towers.E.x=canvas.width-70;
+
+    updateHUD(); hideOverlay();
+    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons();
+
+    showLevelIntro();
   }
 
   /* ===== Avvio ===== */
   resize(); reset(); requestAnimationFrame(tick);
 
-  /* ===== Click su canvas per interrompere puntamento? (opzionale) ===== */
-  on(canvas,'dblclick', ()=> {
-    if(state.targeting){
-      state.energyP += state.targeting.cost;
-      state.targeting=null; state.aimX=null; canvas.classList.remove('aim');
-      flashBanner('Incantesimo annullato • ⚡ rimborsati'); updateHUD();
-    }
-  });
-
-  });
+  })();
   </script>
 </body>
 </html>
