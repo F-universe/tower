@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
   <title>Neon Conquest — build mobile</title>
   <style>
-    /* Nascondi eventuale pulsante entrate (richiesta precedente) */
+    /* Nascondi eventuale pulsante "Entrate" (richiesta precedente) */
     #upInc { display:none !important; }
 
     :root { --accent:#00e5ff; --text:#eaf8ff; }
@@ -29,7 +29,7 @@
     .stat{ margin-left:auto; display:flex; gap:14px; font-weight:600; flex-wrap:wrap }
     .stat b{ color:var(--accent) }
 
-    /* Barra comandi: scorrevole in mobile */
+    /* Barra comandi (compatta in mobile, orizzontale scrollabile) */
     .bar{ position:relative; display:flex; gap:8px; align-items:center; padding:8px 10px 12px 10px; flex-wrap:wrap }
     .bar button{
       background:rgba(12,24,48,.72); color:var(--text);
@@ -41,16 +41,16 @@
     .bar button:active{ transform:translateY(1px) }
     .sep{ opacity:.7 }
 
-    /* In portrait stringiamo e rendiamo la bar scorrevole (orizzontale) */
+    /* In portrait la bar diventa scorrevole e più piccola */
     @media (orientation: portrait) {
       .bar{ flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch; padding-bottom:calc(env(safe-area-inset-bottom,0px) + 10px) }
       .bar::-webkit-scrollbar{ display:none }
-      .bar button{ padding:12px 14px; font-size:14px; white-space:nowrap }
+      .bar button{ padding:10px 12px; font-size:14px; white-space:nowrap }
       header .stat div:nth-child(3),
       header .stat div:nth-child(5){ display:none } /* nasconde alcune info per schermi piccoli */
     }
 
-    /* Menu */
+    /* Menu a comparsa */
     #upMenu, #spellMenu, #mineMenu{
       position:absolute; min-width:320px; display:none; z-index:50;
       background:rgba(14,28,60,.96);
@@ -70,7 +70,7 @@
 
     #gameWrap{ position:relative; flex:1; margin:0 }
     canvas{ position:absolute; inset:0; width:100%; height:100%; background:transparent; touch-action:none; }
-    canvas.aim{ cursor: crosshair; }
+    canvas.aim{ cursor:crosshair; }
 
     /* Overlay fine partita */
     #overlay{
@@ -125,6 +125,7 @@
     </div>
   </header>
 
+  <!-- Barra comandi compatta -->
   <div class="bar" id="bar">
     <button id="spawnWarrior">🗡️ Guerriero (50)</button>
     <button id="spawnCrossbow">🏹 Balestriere (80)</button>
@@ -139,7 +140,6 @@
     <button id="btnSpells">✨ Incantesimi</button>
     <span class="sep">|</span>
 
-    <!-- Miniere -->
     <button id="placeMine">⛏️ Miniera (—)</button>
     <button id="btnMines">📦 Miniere</button>
     <span class="sep">|</span>
@@ -149,12 +149,10 @@
     <span class="sep">|</span>
     <button id="nextLvl">▶️ Prossima Ondata</button>
 
-    <!-- Menu potenziamenti (unità + globali + incantesimi) -->
+    <!-- Menu potenziamenti -->
     <div id="upMenu" role="menu" aria-hidden="true"></div>
-
-    <!-- Menu incantesimi (uso/cast) -->
+    <!-- Menu incantesimi -->
     <div id="spellMenu" role="menu" aria-hidden="true"></div>
-
     <!-- Menu Miniere -->
     <div id="mineMenu" role="menu" aria-hidden="true"></div>
   </div>
@@ -185,87 +183,118 @@
   </main>
   <footer></footer>
 
+  <!-- =========================  SCRIPT COMPLETO  ========================= -->
   <script>
+  window.addEventListener('DOMContentLoaded', () => {
   'use strict';
 
-  /* ===== Utility ===== */
+  /* ===== Helpers DOM sicuri ===== */
+  const $ = (id) => document.getElementById(id);
+  const on = (el, ev, fn, opts) => el && el.addEventListener(ev, fn, opts);
+  const exist = (...ids) => ids.every(id => $(id));
+
   function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
   function rnd(a,b){ return Math.random()*(b-a)+a; }
-  function groundY(){ return canvas.height - 90; } // bordo superiore fascia scura
-  var HP_GREEN = '#20ffa8';
-
-  /* ===== Bilanciamento e costanti ===== */
-  const MAX_UNIT_LVL = 30;          // max livello potenziamenti unità
-  const MAX_SPELL_LVL = 30;         // max livello potenziamenti incantesimi
-  const SPAWN_STEP   = 1.10;        // +10% costo evocazione per livello unità
-  const SPELL_CAST_STEP = 1.10;     // costo cast cresce coi livelli incantesimo
-  const ENERGY_DECAY = 0.0018;      // (ridotto del 40% dal 0.003) — non usato con incomeFall=1
 
   /* ===== Canvas ===== */
-  var canvas = document.getElementById('game');
-  var ctx = canvas.getContext('2d');
-  var wrap = document.getElementById('gameWrap');
+  const canvas = $('game');
+  if(!canvas){ console.error('Canvas #game mancante'); return; }
+  const ctx = canvas.getContext('2d');
+  const wrap = $('gameWrap');
+  function groundY(){ return canvas.height - 90; }
+  const HP_GREEN = '#20ffa8';
+
+  /* ===== Modalità compatta (mobile) ===== */
+  let COMPACT = false;
+  function setCompactFlag(){
+    const w = wrap?.clientWidth || window.innerWidth;
+    const h = wrap?.clientHeight || window.innerHeight;
+    COMPACT = (w < h) || (w < 620);
+  }
+  function label(elId, fullTxt, shortTxt){
+    const el = $(elId); if(!el) return;
+    el.textContent = COMPACT ? (shortTxt ?? fullTxt) : fullTxt;
+    if(COMPACT && fullTxt) el.title = fullTxt;
+  }
+  function applyCompactUI(){
+    document.querySelectorAll('.bar button').forEach(b=>{
+      if(COMPACT){ b.style.padding='8px 10px'; b.style.fontSize='13px'; b.style.borderRadius='10px'; }
+      else{ b.style.padding=''; b.style.fontSize=''; b.style.borderRadius=''; }
+    });
+    updateSpawnButtons(); updateMineButtons(); updateTopButtons();
+  }
   function resize(){
-    var w=wrap.clientWidth, h=wrap.clientHeight;
-    var isPortrait = w < h;
-    var r = isPortrait ? 9/16 : 16/9; // usa 9:16 in verticale
-    var cw=w, ch=Math.floor(w/r);
+    if(!wrap) return;
+    const w=wrap.clientWidth, h=wrap.clientHeight;
+    const isPortrait = w < h;
+    const r = isPortrait ? 9/16 : 16/9;
+    let cw=w, ch=Math.floor(w/r);
     if(ch>h){ ch=h; cw=Math.floor(h*r); }
     canvas.width=cw; canvas.height=ch;
+    setCompactFlag();
+    applyCompactUI();
   }
-  addEventListener('resize', resize);
+  on(window,'resize',resize);
 
   /* ===== Immagini ===== */
-  var bgImg=new Image(), bgReady=false; bgImg.onload=function(){ bgReady=true; }; bgImg.src='new.png';
-  var tImgP=new Image(), tReadyP=false; tImgP.onload=function(){ tReadyP=true; }; tImgP.src='torre1.png';
-  var tImgE=new Image(), tReadyE=false; tImgE.onload=function(){ tReadyE=true; }; tImgE.src='torre2.png';
+  function makeImg(src){ const im=new Image(); let ok=false; im.onload=()=>ok=true; im.src=src; return {img:im, ok:()=>ok}; }
+
+  const bg = makeImg('new.png');
+  const tP = makeImg('torre1.png');
+  const tE = makeImg('torre2.png');
 
   // Alleati
-  var imgAlien=new Image(), readyAlien=false; imgAlien.onload=function(){ readyAlien=true; }; imgAlien.src='alien.png';
-  var imgGolem=new Image(), readyGolem=false; imgGolem.onload=function(){ readyGolem=true; }; imgGolem.src='golem.png';
-  var imgSoldier1=new Image(), readySoldier1=false; imgSoldier1.onload=function(){ readySoldier1=true; }; imgSoldier1.src='soldier1.png';
-  var imgWizard=new Image(), readyWizard=false; imgWizard.onload=function(){ readyWizard=true; }; imgWizard.src='wizard.png';
-  var imgMiniWizard=new Image(), readyMiniWizard=false; imgMiniWizard.onload=function(){ readyMiniWizard=true; }; imgMiniWizard.src='minimago.png';
+  const iAlien = makeImg('alien.png');
+  const iGolem = makeImg('golem.png');
+  const iSoldier1 = makeImg('soldier1.png');
+  const iWizard = makeImg('wizard.png');
+  const iMiniWizard = makeImg('minimago.png');
 
   // Nemici
-  var imgAlien2=new Image(), readyAlien2=false; imgAlien2.onload=function(){ readyAlien2=true; }; imgAlien2.src='alien2.png';
-  var imgGolem2=new Image(), readyGolem2=false; imgGolem2.onload=function(){ readyGolem2=true; }; imgGolem2.src='golem2.png';
-  var imgGolemPrime=new Image(), readyGolemPrime=false; imgGolemPrime.onload=function(){ readyGolemPrime=true; }; imgGolemPrime.src='golem2.1.png';
-  var imgGolem22=new Image(), readyGolem22=false; imgGolem22.onload=function(){ readyGolem22=true; }; imgGolem22.src='golem2.2.png';
-  var imgGoblin2=new Image(), readyGoblin2=false; imgGoblin2.onload=function(){ readyGoblin2=true; }; imgGoblin2.src='goblin2.png';
-  var imgSoldier2=new Image(), readySoldier2=false; imgSoldier2.onload=function(){ readySoldier2=true; }; imgSoldier2.src='soldier2.png';
+  const iAlien2 = makeImg('alien2.png');
+  const iGolem2 = makeImg('golem2.png');
+  const iGolemPrime = makeImg('golem2.1.png');
+  const iGolem22 = makeImg('golem2.2.png');
+  const iGoblin2 = makeImg('goblin2.png');
+  const iSoldier2 = makeImg('soldier2.png');
 
-  // Proiettili / Effetti esistenti
-  var imgFire=new Image(), readyFire=false; imgFire.onload=function(){ readyFire=true; }; imgFire.src='fuoco.png';
-  var imgBoom=new Image(), readyBoom=false; imgBoom.onload=function(){ readyBoom=true; }; imgBoom.src='boom.png';
-  var imgFireB=new Image(), readyFireB=false; imgFireB.onload=function(){ readyFireB=true; }; imgFireB.src='fuocoblu.png';
-  var imgBoom2=new Image(), readyBoom2=false; imgBoom2.onload=function(){ readyBoom2=true; }; imgBoom2.src='boom2.png';
+  // Proiettili / Effetti
+  const iFire = makeImg('fuoco.png');
+  const iBoom = makeImg('boom.png');
+  const iFireB = makeImg('fuocoblu.png');
+  const iBoom2 = makeImg('boom2.png');
 
-  // Incantesimi (sprite)
-  var imgL1=new Image(), rL1=false; imgL1.onload=function(){ rL1=true; }; imgL1.src='fulmine1.png';
-  var imgL2=new Image(), rL2=false; imgL2.onload=function(){ rL2=true; }; imgL2.src='fulmine2.png';
-  var imgL3=new Image(), rL3=false; imgL3.onload=function(){ rL3=true; }; imgL3.src='fulmine3.png';
+  // Sprite incantesimi
+  const iL1 = makeImg('fulmine1.png');
+  const iL2 = makeImg('fulmine2.png');
+  const iL3 = makeImg('fulmine3.png');
 
-  var imgF1=new Image(), rF1=false; imgF1.onload=function(){ rF1=true; }; imgF1.src='incendio1.png';
-  var imgF2=new Image(), rF2=false; imgF2.onload=function(){ rF2=true; }; imgF2.src='incendio2.png';
-  var imgF3=new Image(), rF3=false; imgF3.onload=function(){ rF3=true; }; imgF3.src='incendio3.png';
+  const iF1 = makeImg('incendio1.png');
+  const iF2 = makeImg('incendio2.png');
+  const iF3 = makeImg('incendio3.png');
 
-  var imgS1=new Image(), rS1=false; imgS1.onload=function(){ rS1=true; }; imgS1.src='gelo1.png';
-  var imgS2=new Image(), rS2=false; imgS2.onload=function(){ rS2=true; }; imgS2.src='gelo2.png';
-  var imgS3=new Image(), rS3=false; imgS3.onload=function(){ rS3=true; }; imgS3.src='gelo3.png';
+  const iS1 = makeImg('gelo1.png');
+  const iS2 = makeImg('gelo2.png');
+  const iS3 = makeImg('gelo3.png');
 
-  /* ===== PNG Miniere ===== */
-  var imgMine1=new Image(), rM1=false; imgMine1.onload=function(){ rM1=true; }; imgMine1.src='miniera1.png';
-  var imgMine2=new Image(), rM2=false; imgMine2.onload=function(){ rM2=true; }; imgMine2.src='miniera2.png';
-  var imgMine3=new Image(), rM3=false; imgMine3.onload=function(){ rM3=true; }; imgMine3.src='miniera3.png';
+  // Miniere
+  const iM1 = makeImg('miniera1.png');
+  const iM2 = makeImg('miniera2.png');
+  const iM3 = makeImg('miniera3.png');
+
+  /* ===== Bilanciamento e costanti ===== */
+  const MAX_UNIT_LVL = 30;
+  const MAX_SPELL_LVL = 30;
+  const SPAWN_STEP   = 1.10;
+  const SPELL_CAST_STEP = 1.10;
+  const ENERGY_DECAY = 0.0018; // non usato con incomeFall=1
 
   /* ===== Stato ===== */
-  var state={
+  const state={
     time:0, dt:0, last:0, speed:1, paused:false, level:1,
     incomeP:6, incomeE:6, energyP:180, energyE:180,
     dmgMulP:1, incomeMulP:1, incomeFall:1, unitSpeedMul:0.35,
 
-    // upgrade unità: DMG + HP separati (HP ~ +2% rispetto al danno)
     unitUp:{
       Warrior:{lvl:0, dmg:1.00, hp:1.00},
       Crossbow:{lvl:0, dmg:1.00, hp:1.00},
@@ -274,10 +303,8 @@
       BabyWizard:{lvl:0, dmg:1.00, hp:1.00}
     },
 
-    // globali (+1% ciascuno)
     globalUp:{ dmg:0, inc:0 },
 
-    // incantesimi (potenziabili)
     spells:{
       lightning:{cost:250, dmg:70, unlockLvl:2, lvl:0, mul:1.00},
       fire:{cost:600, impact:400, dot:100, dotDur:5, unlockLvl:4, lvl:0, mul:1.00},
@@ -286,7 +313,7 @@
     targeting:null,
     aimX:null,
 
-    /* Miniere: 40% meno rendimento, +40% costi di piazzamento/upgrade */
+    /* Miniere */
     minePlaceCost: Math.round(500*1.4),
     mines:[],
     mineRates:[21,33,60,120],
@@ -299,8 +326,8 @@
     maxEnemies:22
   };
 
-  // upgrade per-unità (danno/HP)
-  var UP={
+  // upgrade per-unità
+  const UP={
     Warrior:{base:120, step:1.35, bonusD:0.12, bonusH:0.14},
     Crossbow:{base:160, step:1.35, bonusD:0.12, bonusH:0.14},
     Golem  :{base:220, step:1.35, bonusD:0.12, bonusH:0.14},
@@ -308,8 +335,8 @@
     BabyWizard:{base:520, step:1.35, bonusD:0.12, bonusH:0.14}
   };
 
-  // potenziamenti incantesimi (dentro menu potenziamenti)
-  var SPELL_UP={
+  // potenziamenti incantesimi
+  const SPELL_UP={
     lightning:{base:220, step:1.35, bonus:0.12},
     fire     :{base:280, step:1.35, bonus:0.12},
     slow     :{base:260, step:1.35, bonus:0.10}
@@ -338,25 +365,24 @@
     state.spells.fire.lvl=0; state.spells.fire.mul=1.00;
     state.spells.slow.lvl=0; state.spells.slow.mul=1.00;
 
-    var g=groundY();
+    const g=groundY();
     state.towers.P.y=g; state.towers.E.y=g; state.towers.E.x=canvas.width-70;
 
     updateHUD(); hideOverlay();
-    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons();
+    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons(); updateTopButtons();
 
-    // intro livello
     showLevelIntro();
   }
 
   /* ===== Slow factor da campi di gelo ===== */
   function slowFactorFor(unit){
     if(unit.side!=='E') return 1;
-    var mul=1;
-    for(var i=0;i<state.effects.length;i++){
-      var e=state.effects[i];
+    let mul=1;
+    for(let i=0;i<state.effects.length;i++){
+      const e=state.effects[i];
       if(!e || !e.isSlowField) continue;
       if(e.t>=e.dur) continue;
-      var dx=unit.x - e.x, dy=unit.y - e.y, r2=e.r*e.r;
+      const dx=unit.x - e.x, dy=unit.y - e.y, r2=e.r*e.r;
       if(dx*dx+dy*dy <= r2){ mul = Math.min(mul, e.factor); }
     }
     return mul;
@@ -364,13 +390,13 @@
 
   /* ===== Unità ===== */
   function Unit(side,type){
-    this.side=side; this.type=type; var base=Unit.types[type];
-    var sc = (side==='E') ? enemyScale() : 1;
+    this.side=side; this.type=type; const base=Unit.types[type];
+    const sc = (side==='E') ? enemyScale() : 1;
 
     // moltiplicatori player (DMG/HP)
-    var u = (side==='P' && state.unitUp[type]) ? state.unitUp[type] : null;
-    var dmgMul = u ? u.dmg : 1;
-    var hpMul  = u ? u.hp  : 1;
+    const u = (side==='P' && state.unitUp[type]) ? state.unitUp[type] : null;
+    const dmgMul = u ? u.dmg : 1;
+    const hpMul  = u ? u.hp  : 1;
 
     this.baseDamage = base.damage*sc;
     this.damageMul  = dmgMul;
@@ -397,15 +423,15 @@
       this.spawnTimer -= dt;
       if(this.spawnTimer<=0){
         this.spawnTimer += this.spawnEvery;
-        var g = new Unit('E','EGoblin');
+        const g = new Unit('E','EGoblin');
         g.x = this.x + rnd(-12,12); g.y=this.y;
         state.entities.push(g);
       }
     }
-    var foes=state.entities.filter(function(e){return e.side!==this.side;}, this);
-    var target=null, best=1e9, i, f, d;
-    for(i=0;i<foes.length;i++){
-      f=foes[i]; d=Math.abs(f.x-this.x);
+    const foes=state.entities.filter(e=>e.side!==this.side);
+    let target=null, best=1e9;
+    for(let i=0;i<foes.length;i++){
+      const f=foes[i]; const d=Math.abs(f.x-this.x);
       if((this.dir>0 && f.x>=this.x) || (this.dir<0 && f.x<=this.x)){
         if(d<best){ best=d; target=f; }
       }
@@ -414,8 +440,8 @@
     if(!target){ target=(this.side==='P')? state.towers.E : state.towers.P; best=Math.abs(target.x-this.x); }
     if(best<=this.range){ this.timer-=dt; if(this.timer<=0){ this.attack(target); this.timer=this.cool; } }
     else {
-      var slowMul = slowFactorFor(this);
-      var step = this.speed*state.unitSpeedMul*slowMul*this.dir*dt*60;
+      const slowMul = slowFactorFor(this);
+      const step = this.speed*state.unitSpeedMul*slowMul*this.dir*dt*60;
       this.x += step; this.x=clamp(this.x, 20, canvas.width-20);
       if(this.type==='EGolemRoll'){ this.angle -= Math.abs(step) / (this.rollR || 40); }
     }
@@ -423,12 +449,12 @@
 
   Unit.prototype.attack=function(target){
     // danno effettivo = base × upgradeUnit.dmg × (dmg globale se Player)
-    var dmgEff = this.baseDamage * (this.side==='P' ? this.damageMul*state.dmgMulP : 1);
+    const dmgEff = this.baseDamage * (this.side==='P' ? this.damageMul*state.dmgMulP : 1);
 
     // maghi lanciano AoE
     if(this.side==='P' && (this.type==='Wizard' || this.type==='BabyWizard')){
       this.shake = 0.25;
-      var tx = (this.lastTargetX!==null)? this.lastTargetX : (this.x + 200*this.dir);
+      const tx = (this.lastTargetX!==null)? this.lastTargetX : (this.x + 200*this.dir);
       if(this.type==='Wizard'){
         state.projectiles.push(new Projectile(tx, -60, 0, this.side, dmgEff, 'fire', false, {vy:520, radius:70}));
       }else{
@@ -438,7 +464,7 @@
     }
 
     if(this.ranged){
-      var v=(this.side==='P')? 320 : -320;
+      const v=(this.side==='P')? 320 : -320;
       state.projectiles.push(new Projectile(this.x,this.y-10,v,this.side,dmgEff,'bolt',true));
     } else {
       dealDamage(target,dmgEff);
@@ -448,53 +474,52 @@
   Unit.prototype.draw=function(){
     ctx.save();
     if(this.shake>0){
-      var amp=2.2*this.shake;
+      const amp=2.2*this.shake;
       ctx.translate((Math.random()-0.5)*amp, (Math.random()-0.5)*amp);
     }
 
-    // (come nel file originale — con fallback se le PNG mancano)
     const t=this.type, s=this.size;
-    function rect(x,y,w,h,c){ ctx.fillStyle=c; ctx.fillRect(x-w/2,y-h,w,h); }
+    const drawRect=(x,y,w,h,c)=>{ ctx.fillStyle=c; ctx.fillRect(x-w/2,y-h,w,h); };
 
     if(t==='Crossbow'){
-      if(readyAlien){ let dh=s*1.9, sc=dh/Math.max(1,imgAlien.height), dw=imgAlien.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgAlien,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.7,s*0.7,'#7be8ff');
+      if(iAlien.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iAlien.img.height), dw=iAlien.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iAlien.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.7,s*0.7,'#7be8ff');
     } else if(t==='ECrossbow'){
-      if(readyAlien2){ let dh=s*1.9, sc=dh/Math.max(1,imgAlien2.height), dw=imgAlien2.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgAlien2,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.7,s*0.7,'#ffa1c3');
+      if(iAlien2.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iAlien2.img.height), dw=iAlien2.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iAlien2.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.7,s*0.7,'#ffa1c3');
     } else if(t==='Golem'){
-      if(readyGolem){ let dh=s*2.3, sc=dh/Math.max(1,imgGolem.height), dw=imgGolem.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgGolem,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.9,s*0.9,'#5dd6ff');
+      if(iGolem.ok()){ let dh=s*2.3, sc=dh/Math.max(1,iGolem.img.height), dw=iGolem.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGolem.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.9,s*0.9,'#5dd6ff');
     } else if(t==='EGolem'){
-      if(readyGolem2){ let dh=s*2.3, sc=dh/Math.max(1,imgGolem2.height), dw=imgGolem2.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgGolem2,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.9,s*0.9,'#ff86b1');
+      if(iGolem2.ok()){ let dh=s*2.3, sc=dh/Math.max(1,iGolem2.img.height), dw=iGolem2.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGolem2.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.9,s*0.9,'#ff86b1');
     } else if(t==='EGolemPrime'){
-      if(readyGolemPrime){ let dh=s*2.8, sc=dh/Math.max(1,imgGolemPrime.height), dw=imgGolemPrime.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgGolemPrime,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s,s,'#d48cff');
+      if(iGolemPrime.ok()){ let dh=s*2.8, sc=dh/Math.max(1,iGolemPrime.img.height), dw=iGolemPrime.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGolemPrime.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s,s,'#d48cff');
     } else if(t==='EGolemRoll'){
-      var R=this.rollR||s*1.25, S=R*2, cy=this.y-R;
-      if(readyGolem22){ ctx.translate(this.x,cy); ctx.rotate(this.angle); ctx.drawImage(imgGolem22,-S/2,-S/2,S,S); }
+      const R=this.rollR||s*1.25, S=R*2, cy=this.y-R;
+      if(iGolem22.ok()){ ctx.translate(this.x,cy); ctx.rotate(this.angle); ctx.drawImage(iGolem22.img,-S/2,-S/2,S,S); }
       else{ ctx.translate(this.x,cy); ctx.rotate(this.angle); ctx.fillStyle='#ff9bd0'; ctx.beginPath(); ctx.arc(0,0,R,0,Math.PI*2); ctx.fill(); }
     } else if(t==='EGoblin'){
-      if(readyGoblin2){ let dh=s*1.6, sc=dh/Math.max(1,imgGoblin2.height), dw=imgGoblin2.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgGoblin2,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.8,s*0.8,'#88ff88');
+      if(iGoblin2.ok()){ let dh=s*1.6, sc=dh/Math.max(1,iGoblin2.img.height), dw=iGoblin2.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iGoblin2.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.8,s*0.8,'#88ff88');
     } else if(t==='Warrior'){
-      if(readySoldier1){ let dh=s*1.9, sc=dh/Math.max(1,imgSoldier1.height), dw=imgSoldier1.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgSoldier1,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.7,s*0.7,'#39cfff');
+      if(iSoldier1.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iSoldier1.img.height), dw=iSoldier1.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iSoldier1.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.7,s*0.7,'#39cfff');
     } else if(t==='EWarrior'){
-      if(readySoldier2){ let dh=s*1.9, sc=dh/Math.max(1,imgSoldier2.height), dw=imgSoldier2.width*sc; ctx.translate(this.x,this.y); ctx.scale(-1,1); ctx.drawImage(imgSoldier2,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.7,s*0.7,'#ff5f9a');
+      if(iSoldier2.ok()){ let dh=s*1.9, sc=dh/Math.max(1,iSoldier2.img.height), dw=iSoldier2.img.width*sc; ctx.translate(this.x,this.y); ctx.scale(-1,1); ctx.drawImage(iSoldier2.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.7,s*0.7,'#ff5f9a');
     } else if(t==='Wizard'){
-      if(readyWizard){ let dh=s*2.0, sc=dh/Math.max(1,imgWizard.height), dw=imgWizard.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgWizard,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.7,s*0.9,'#c9a7ff');
+      if(iWizard.ok()){ let dh=s*2.0, sc=dh/Math.max(1,iWizard.img.height), dw=iWizard.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iWizard.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.7,s*0.9,'#c9a7ff');
     } else if(t==='BabyWizard'){
-      if(readyMiniWizard){ let dh=s*2.0, sc=dh/Math.max(1,imgMiniWizard.height), dw=imgMiniWizard.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(imgMiniWizard,-dw/2,-dh,dw,dh); }
-      else rect(this.x,this.y,s*0.7,s*0.9,'#7ecbff');
+      if(iMiniWizard.ok()){ let dh=s*2.0, sc=dh/Math.max(1,iMiniWizard.img.height), dw=iMiniWizard.img.width*sc; ctx.translate(this.x,this.y); ctx.drawImage(iMiniWizard.img,-dw/2,-dh,dw,dh); }
+      else drawRect(this.x,this.y,s*0.7,s*0.9,'#7ecbff');
     }
     ctx.restore();
 
     // barra HP
-    var bw=Math.max(20,this.size*1.1);
+    const bw=Math.max(20,this.size*1.1);
     ctx.fillStyle='rgba(255,255,255,.14)'; ctx.fillRect(this.x-bw/2, this.y-this.size*1.25-10, bw, 6);
     ctx.fillStyle=HP_GREEN; ctx.fillRect(this.x-bw/2, this.y-this.size*1.25-10, bw*(this.hp/this.maxHp), 6);
   };
@@ -520,17 +545,17 @@
   function Boom(x,y,r,kind){ this.x=x; this.y=y; this.r=r; this.kind=kind||'fire'; this.t=0; this.dur=0.38; }
   Boom.prototype.update=function(dt){ this.t+=dt; };
   Boom.prototype.draw=function(){
-    var k = Math.min(1, this.t/this.dur);
-    var alpha = 1 - k, scale = 0.6 + 0.6*k;
+    const k = Math.min(1, this.t/this.dur);
+    const alpha = 1 - k, scale = 0.6 + 0.6*k;
     ctx.save(); ctx.globalAlpha = alpha; ctx.globalCompositeOperation = 'screen';
-    if(this.kind==='lightning' && rL3){ var sz=this.r*2*scale; ctx.drawImage(imgL3, this.x-sz/2, this.y-sz/2, sz, sz); }
-    else if(this.kind==='spellFire' && rF3){ var s2=this.r*2*scale; ctx.drawImage(imgF3, this.x-s2/2, this.y-s2/2, s2, s2); }
+    if(this.kind==='lightning' && iL3.ok()){ const sz=this.r*2*scale; ctx.drawImage(iL3.img, this.x-sz/2, this.y-sz/2, sz, sz); }
+    else if(this.kind==='spellFire' && iF3.ok()){ const s2=this.r*2*scale; ctx.drawImage(iF3.img, this.x-s2/2, this.y-s2/2, s2, s2); }
     else{
-      var img = (this.kind==='fireB') ? imgBoom2 : imgBoom;
-      var ready = (this.kind==='fireB') ? readyBoom2 : readyBoom;
-      if(ready){ var s3=this.r*2*scale; ctx.drawImage(img, this.x - s3/2, this.y - s3/2, s3, s3); }
+      const im = (this.kind==='fireB') ? iBoom2.img : iBoom.img;
+      const ok = (this.kind==='fireB') ? iBoom2.ok() : iBoom.ok();
+      if(ok){ const s3=this.r*2*scale; ctx.drawImage(im, this.x - s3/2, this.y - s3/2, s3, s3); }
       else{
-        var rad=this.r*scale, grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
+        const rad=this.r*scale, grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
         if(this.kind==='fireB'){ grd.addColorStop(0,'rgba(160,220,255,.95)'); grd.addColorStop(1,'rgba(40,140,255,0)'); }
         else if(this.kind==='lightning'){ grd.addColorStop(0,'rgba(200,235,255,.95)'); grd.addColorStop(1,'rgba(80,170,255,0)'); }
         else if(this.kind==='spellFire'){ grd.addColorStop(0,'rgba(255,180,80,.95)'); grd.addColorStop(1,'rgba(255,80,20,0)'); }
@@ -543,17 +568,17 @@
 
   function BurnField(x,y,r,dps,dur){ this.x=x; this.y=y; this.r=r; this.dps=dps; this.t=0; this.dur=dur; }
   BurnField.prototype.update=function(dt){
-    this.t+=dt; var dmg=this.dps*dt;
-    var foes=state.entities.filter(function(e){return e.side==='E';});
-    var r2=this.r*this.r;
-    for(var i=0;i<foes.length;i++){ var f=foes[i]; var dx=f.x-this.x, dy=f.y-this.y; if(dx*dx+dy*dy<=r2){ dealDamage(f,dmg); } }
+    this.t+=dt; const dmg=this.dps*dt;
+    const foes=state.entities.filter(e=>e.side==='E');
+    const r2=this.r*this.r;
+    for(let i=0;i<foes.length;i++){ const f=foes[i]; const dx=f.x-this.x, dy=f.y-this.y; if(dx*dx+dy*dy<=r2){ dealDamage(f,dmg); } }
   };
   BurnField.prototype.draw=function(){
-    var k=this.t/this.dur; if(k>1) k=1;
-    var alpha=0.28*(1-k)+0.18;
+    let k=this.t/this.dur; if(k>1) k=1;
+    const alpha=0.28*(1-k)+0.18;
     ctx.save(); ctx.globalCompositeOperation='screen';
-    var rad=this.r*(1+0.04*Math.sin(state.time*4));
-    var grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
+    const rad=this.r*(1+0.04*Math.sin(state.time*4));
+    const grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
     grd.addColorStop(0,'rgba(255,160,60,'+alpha+')'); grd.addColorStop(1,'rgba(255,60,0,0)');
     ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.fill(); ctx.restore();
   };
@@ -561,11 +586,11 @@
   function SlowField(x,y,r,factor,dur){ this.x=x; this.y=y; this.r=r; this.factor=factor; this.t=0; this.dur=dur; this.isSlowField=true; }
   SlowField.prototype.update=function(dt){ this.t+=dt; };
   SlowField.prototype.draw=function(){
-    var k=this.t/this.dur; if(k>1) k=1;
-    var alpha=0.30*(1-k)+0.12;
+    let k=this.t/this.dur; if(k>1) k=1;
+    const alpha=0.30*(1-k)+0.12;
     ctx.save(); ctx.globalCompositeOperation='screen';
-    var rad=this.r*(1+0.03*Math.sin(state.time*3));
-    var grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
+    const rad=this.r*(1+0.03*Math.sin(state.time*3));
+    const grd=ctx.createRadialGradient(this.x,this.y,0,this.x,this.y,rad);
     grd.addColorStop(0,'rgba(170,220,255,'+alpha+')'); grd.addColorStop(1,'rgba(80,170,255,0)');
     ctx.fillStyle=grd; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.fill();
     ctx.strokeStyle='rgba(150,210,255,'+(alpha*1.3)+')'; ctx.lineWidth=2; ctx.beginPath(); ctx.arc(this.x,this.y,rad,0,Math.PI*2); ctx.stroke();
@@ -581,18 +606,18 @@
   Projectile.prototype.update=function(dt){
     if(this.kind==='fire' || this.kind==='fireB' || this.kind==='lightning' || this.kind==='fireSpell' || this.kind==='slowSpell'){
       this.y += this.vy*dt;
-      var gy = groundY(), impactY = gy;
+      const gy = groundY(), impactY = gy;
       if(this.y >= impactY){
         this.y = impactY;
 
         if(this.kind!=='slowSpell'){
-          var foes=state.entities.filter(function(e){return e.side!==this.side;}, this);
-          var r2=this.radius*this.radius;
-          for(var i=0;i<foes.length;i++){
-            var f=foes[i]; var dx=f.x-this.x, dy=(f.y-impactY); var d2=dx*dx+dy*dy;
+          const foes=state.entities.filter(e=>e.side!==this.side);
+          const r2=this.radius*this.radius;
+          for(let i=0;i<foes.length;i++){
+            const f=foes[i]; const dx=f.x-this.x, dy=(f.y-impactY); const d2=dx*dx+dy*dy;
             if(d2<=r2){ dealDamage(f,this.damage); }
           }
-          var tower = (this.side==='P')? state.towers.E : state.towers.P;
+          const tower = (this.side==='P')? state.towers.E : state.towers.P;
           if(Math.abs(tower.x-this.x) <= this.radius + 28){ dealDamage(tower, this.damage); }
         }
 
@@ -600,12 +625,12 @@
           state.effects.push(new Boom(this.x, impactY, this.radius, 'lightning'));
         }else if(this.kind==='fireSpell'){
           state.effects.push(new Boom(this.x, impactY, this.radius, 'spellFire'));
-          var dps = (state.spells.fire.dot * state.spells.fire.mul) * state.dmgMulP;
-          var dur = state.spells.fire.dotDur + 2*state.spells.fire.lvl;
+          const dps = (state.spells.fire.dot * state.spells.fire.mul) * state.dmgMulP;
+          const dur = state.spells.fire.dotDur + 2*state.spells.fire.lvl;
           state.effects.push(new BurnField(this.x, impactY, this.radius, dps, dur));
         }else if(this.kind==='slowSpell'){
-          var effFactor = Math.max(0.2, state.spells.slow.factor * Math.pow(0.96, state.spells.slow.lvl));
-          var effDur = state.spells.slow.dur + 2*state.spells.slow.lvl;
+          const effFactor = Math.max(0.2, state.spells.slow.factor * Math.pow(0.96, state.spells.slow.lvl));
+          const effDur = state.spells.slow.dur + 2*state.spells.slow.lvl;
           state.effects.push(new SlowField(this.x, impactY, this.radius, effFactor, effDur));
         }else{
           state.effects.push(new Boom(this.x, impactY, this.radius, this.kind));
@@ -618,13 +643,13 @@
 
     // proiettile standard
     this.x += this.vx*dt;
-    var foes2=state.entities.filter(function(e){return e.side!==this.side;}, this);
-    for(var j=0;j<foes2.length;j++){
-      var f2=foes2[j];
+    const foes2=state.entities.filter(e=>e.side!==this.side);
+    for(let j=0;j<foes2.length;j++){
+      const f2=foes2[j];
       if(Math.abs(f2.x-this.x)<14 && Math.abs(f2.y-this.y)<18){ dealDamage(f2,this.damage); this.dead=true; break; }
     }
     if(this.canHitTower){
-      var t = (this.side==='P')? state.towers.E : state.towers.P;
+      const t = (this.side==='P')? state.towers.E : state.towers.P;
       if(Math.abs(t.x-this.x)<26 && this.y>t.y-180){ dealDamage(t,this.damage); this.dead=true; }
     }
     if(this.x<-80||this.x>canvas.width+80) this.dead=true;
@@ -634,10 +659,10 @@
       ctx.save(); ctx.globalCompositeOperation='screen';
 
       if(this.kind==='lightning'){
-        var gy = groundY(), hSpan = gy + 120, phase = clamp((this.y+120)/hSpan, 0, 1);
-        var useImg=null, ready=false;
-        if(phase < 0.33){ useImg = imgL1; ready=rL1; } else { useImg = imgL2; ready=rL2; }
-        if(ready){ ctx.drawImage(useImg, this.x-28, this.y-43, 56, 86); }
+        const gy = groundY(), hSpan = gy + 120, phase = clamp((this.y+120)/hSpan, 0, 1);
+        let useImg=null, ok=false;
+        if(phase < 0.33){ useImg = iL1.img; ok=iL1.ok(); } else { useImg = iL2.img; ok=iL2.ok(); }
+        if(ok){ ctx.drawImage(useImg, this.x-28, this.y-43, 56, 86); }
         else{
           ctx.shadowBlur=18; ctx.shadowColor='#bfe8ff';
           ctx.strokeStyle='rgba(190,235,255,.95)'; ctx.lineWidth=3;
@@ -648,26 +673,26 @@
       }
 
       if(this.kind==='fireSpell'){
-        var gy2 = groundY(), hSpan2 = gy2 + 120, phase2 = clamp((this.y+120)/hSpan2, 0, 1);
-        var useImgF=null, readyF=false;
-        if(phase2 < 0.4){ useImgF = imgF1; readyF=rF1; } else { useImgF = imgF2; readyF=rF2; }
-        if(readyF){ ctx.drawImage(useImgF, this.x-30, this.y-30, 60, 60); }
+        const gy2 = groundY(), hSpan2 = gy2 + 120, phase2 = clamp((this.y+120)/hSpan2, 0, 1);
+        let useImgF=null, okF=false;
+        if(phase2 < 0.4){ useImgF = iF1.img; okF=iF1.ok(); } else { useImgF = iF2.img; okF=iF2.ok(); }
+        if(okF){ ctx.drawImage(useImgF, this.x-30, this.y-30, 60, 60); }
         else{ ctx.fillStyle='rgba(255,120,40,.9)'; ctx.beginPath(); ctx.arc(this.x, this.y, 12, 0, Math.PI*2); ctx.fill(); }
         ctx.restore(); return;
       }
 
       if(this.kind==='slowSpell'){
-        var gy3 = groundY(), hSpan3 = gy3 + 120, phase3 = clamp((this.y+120)/hSpan3, 0, 1);
-        var useImgS=null, readyS=false;
-        if(phase3 < 0.4){ useImgS = imgS1; readyS=rS1; } else { useImgS = imgS2; readyS=rS2; }
-        if(readyS){ ctx.drawImage(useImgS, this.x-28, this.y-28, 56, 56); }
+        const gy3 = groundY(), hSpan3 = gy3 + 120, phase3 = clamp((this.y+120)/hSpan3, 0, 1);
+        let useImgS=null, okS=false;
+        if(phase3 < 0.4){ useImgS = iS1.img; okS=iS1.ok(); } else { useImgS = iS2.img; okS=iS2.ok(); }
+        if(okS){ ctx.drawImage(useImgS, this.x-28, this.y-28, 56, 56); }
         else{ ctx.fillStyle='rgba(150,210,255,.9)'; ctx.beginPath(); ctx.arc(this.x, this.y, 12, 0, Math.PI*2); ctx.fill(); }
         ctx.restore(); return;
       }
 
       // palle di fuoco unità
-      var useBlue = (this.kind==='fireB');
-      if(useBlue ? readyFireB : readyFire){ var im = useBlue ? imgFireB : imgFire; ctx.drawImage(im, this.x-24, this.y-24, 48, 48); }
+      const useBlue = (this.kind==='fireB');
+      if(useBlue ? iFireB.ok() : iFire.ok()){ const im = useBlue ? iFireB.img : iFire.img; ctx.drawImage(im, this.x-24, this.y-24, 48, 48); }
       else{ ctx.fillStyle= useBlue ? 'rgba(90,170,255,.9)' : 'rgba(255,120,60,.9)'; ctx.beginPath(); ctx.arc(this.x, this.y, 10, 0, Math.PI*2); ctx.fill(); }
       ctx.restore(); return;
     }
@@ -699,13 +724,14 @@
   }
 
   function showLevelIntro(){
-    var intro=document.getElementById('levelIntro');
-    var title=document.getElementById('introTitle');
-    var desc=document.getElementById('introDesc');
+    const intro=$('levelIntro');
+    const title=$('introTitle');
+    const desc=$('introDesc');
+    if(!intro||!title||!desc) return;
     title.textContent = 'LIVELLO ' + state.level;
     desc.textContent = 'Nuova ondata in arrivo… preparati!';
     intro.style.display='flex';
-    setTimeout(function(){ intro.style.display='none'; state.ai.timer = 0.2; spawnEnemy(); }, 1600);
+    setTimeout(()=>{ intro.style.display='none'; state.ai.timer = 0.2; spawnEnemy(); }, 1600);
   }
 
   function nextLevel(){
@@ -723,7 +749,7 @@
 
     state.ai.timer=0; state.ai.spawnCount=0; state.paused=false;
 
-    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons();
+    renderUpMenu(); updateSpellLabels(); renderMineMenu(); updateSpawnButtons(); updateMineButtons(); updateTopButtons();
     updateHUD();
     showLevelIntro();
   }
@@ -732,39 +758,36 @@
   function canAfford(c){ return state.energyP>=c; }
   function spend(c){ state.energyP=Math.max(0,state.energyP-c); }
 
-  // costo evocazione unità dinamico
   function currentUnitCost(type){
-    var base = Unit.types[type].cost || 0;
-    var lvl  = state.unitUp[type] ? state.unitUp[type].lvl : 0;
+    const base = Unit.types[type].cost || 0;
+    const lvl  = state.unitUp[type] ? state.unitUp[type].lvl : 0;
     return Math.round(base * Math.pow(SPAWN_STEP, lvl));
   }
-
-  // costo di CAST incantesimi (dipende dal livello dell’incantesimo)
   function currentSpellCost(key){
-    var base = state.spells[key].cost;
-    var lvl  = state.spells[key].lvl;
+    const base = state.spells[key].cost;
+    const lvl  = state.spells[key].lvl;
     return Math.round(base * Math.pow(SPELL_CAST_STEP, lvl));
   }
 
   function spawnPlayer(type){
-    var cost=currentUnitCost(type); if(!canAfford(cost)) return;
+    const cost=currentUnitCost(type); if(!canAfford(cost)) return;
     spend(cost); state.entities.push(new Unit('P',type)); pulseHUD(); updateHUD(); updateSpawnButtons();
   }
 
   function spawnEnemy(){
-    var enemies=state.entities.filter(function(e){return e.side==='E';}).length;
-    var slots=Math.max(0, state.maxEnemies - enemies); if(slots<=0) return;
-    var lvl=state.level; var budget=clamp(50 + lvl*22 + rnd(-10,10), 50, 450);
-    var remain=budget; var spawnedG=false; state.ai.spawnCount=(state.ai.spawnCount||0)+1; var spawned=0;
+    const enemies=state.entities.filter(e=>e.side==='E').length;
+    const slots=Math.max(0, state.maxEnemies - enemies); if(slots<=0) return;
+    const lvl=state.level; let budget=clamp(50 + lvl*22 + rnd(-10,10), 50, 450);
+    let remain=budget; let spawnedG=false; state.ai.spawnCount=(state.ai.spawnCount||0)+1; let spawned=0;
     while(remain>0 && spawned<slots){
-      var roll=Math.random(); var t;
+      const roll=Math.random(); let t;
       if(roll < 0.65) t='EWarrior';
       else if(roll < 0.87) t='ECrossbow';
       else if(state.level>=6 && roll < 0.90) t='EGolemRoll';
       else if(state.level>=3 && roll < 0.94) t='EGolemPrime';
       else t='EGolem';
 
-      var cost=Unit.types[t].cost || 60;
+      const cost=Unit.types[t].cost || 60;
       if(remain-cost<0){ break; }
       state.entities.push(new Unit('E',t)); remain-=cost; spawned++; if(t==='EGolem'||t==='EGolemPrime'||t==='EGolemRoll') spawnedG=true;
     }
@@ -774,50 +797,45 @@
   /* ===== Miniere ===== */
   const MINE_W = 64, MINE_H = 46, MINE_GAP = 12;
   function mineRowY(){ return groundY() + 32; }
-
-  // POSIZIONAMENTO: subito a destra della torre sinistra, verso destra
-  function minePos(index, total){
+  function minePos(index){
     const margin = 10;
-    const baseLeft = state.towers.P.x + state.towers.P.w/2 + MINE_W/2 + 10; // vicino alla torre
+    const baseLeft = state.towers.P.x + state.towers.P.w/2 + MINE_W/2 + 10;
     const maxRight = canvas.width - margin - MINE_W/2;
     let gap = MINE_GAP;
     while(baseLeft + index*(MINE_W+gap) > maxRight && gap>4){ gap -= 1; }
     const x = Math.min(baseLeft + index*(MINE_W+gap), maxRight);
     return { x, y: mineRowY(), gapUsed: gap };
   }
-
   function layoutMines(){
     for(let i=0;i<state.mines.length;i++){
-      const p = minePos(i, state.mines.length);
+      const p = minePos(i);
       state.mines[i].x = p.x; state.mines[i].y = p.y;
       state.mines[i].w = MINE_W; state.mines[i].h = MINE_H;
     }
   }
-
   function updateMineButtons(){
-    document.getElementById('placeMine').textContent = `⛏️ Miniera (${state.minePlaceCost})`;
+    const txtFull = `⛏️ Miniera (${state.minePlaceCost})`;
+    const txtShort= `⛏️ ${state.minePlaceCost}`;
+    label('placeMine', txtFull, txtShort);
   }
-
   function addMine(){
     if(state.mines.length >= state.maxMines) return;
-    var cost = state.minePlaceCost; if(!canAfford(cost)) return;
+    const cost = state.minePlaceCost; if(!canAfford(cost)) return;
     spend(cost);
     state.mines.push({ level:0, timer:0, x:0, y:0, w:MINE_W, h:MINE_H });
     layoutMines();
     flashBanner('⛏️ Miniera piazzata');
     updateHUD(); renderMineMenu();
   }
-
   function upgradeMine(i){
-    var m = state.mines[i]; if(!m) return;
+    const m = state.mines[i]; if(!m) return;
     if(m.level>=3) return;
-    var nextIdx = m.level; var cost = state.mineCosts[nextIdx]; if(!canAfford(cost)) return;
+    const nextIdx = m.level; const cost = state.mineCosts[nextIdx]; if(!canAfford(cost)) return;
     spend(cost);
     m.level += 1;
     flashBanner(`⛏️ Miniera ${i+1} → Lv${m.level}`);
     updateHUD(); renderMineMenu();
   }
-
   function MineBurst(x,y,amount){ this.x=x; this.y=y; this.amount=amount; this.t=0; this.dur=0.9; }
   MineBurst.prototype.update=function(dt){ this.t+=dt; };
   MineBurst.prototype.draw=function(){
@@ -827,7 +845,6 @@
     ctx.globalAlpha=1.0*(1-k); ctx.font='700 16px Inter,system-ui,Arial'; ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillStyle='rgba(0,229,255,.95)';
     ctx.fillText('💰 +'+this.amount, this.x, this.y-8-up); ctx.restore();
   };
-
   function updateMines(dt){
     for(let i=0;i<state.mines.length;i++){
       const m = state.mines[i]; m.timer += dt;
@@ -840,24 +857,29 @@
       }
     }
   }
-
   function drawMines(){
     for(let i=0;i<state.mines.length;i++){
-      const m=state.mines[i], img = (m.level===0?imgMine1:m.level===1?imgMine2:imgMine3), ready = (m.level===0?rM1:m.level===1?rM2:rM3);
+      const m=state.mines[i];
+      const im = (m.level===0?iM1:iM2 && m.level===1?iM2:iM3);
+      const ready = (m.level===0?iM1.ok():m.level===1?iM2.ok():iM3.ok());
       const x = m.x - MINE_W/2, y = m.y - MINE_H;
-      if(ready){ ctx.drawImage(img, x, y, MINE_W, MINE_H); }
-      else{ ctx.fillStyle='rgba(0,229,255,.28)'; ctx.fillRect(x, y, MINE_W, MINE_H); ctx.fillStyle='rgba(10,18,36,.9)'; ctx.fillRect(x+MINE_W*0.25, y+MINE_H*0.45, MINE_W*0.5, MINE_H*0.3); }
+      if(ready){ ctx.drawImage(im.img, x, y, MINE_W, MINE_H); }
+      else{
+        ctx.fillStyle='rgba(0,229,255,.28)'; ctx.fillRect(x, y, MINE_W, MINE_H);
+        ctx.fillStyle='rgba(10,18,36,.9)'; ctx.fillRect(x+MINE_W*0.25, y+MINE_H*0.45, MINE_W*0.5, MINE_H*0.3);
+      }
       ctx.save(); ctx.globalCompositeOperation='screen'; ctx.fillStyle='rgba(0,229,255,.12)'; ctx.fillRect(x+4, y+MINE_H+2, MINE_W-8, 8); ctx.restore();
     }
   }
 
   /* ===== HUD / Overlay ===== */
-  var energyP=document.getElementById('energyP');
-  var hpP=document.getElementById('hpP');
-  var hpE=document.getElementById('hpE');
-  var speedLbl=document.getElementById('speedLbl');
-  var lvlLbl=document.getElementById('lvlLbl');
+  const energyP=$('energyP');
+  const hpP=$('hpP');
+  const hpE=$('hpE');
+  const speedLbl=$('speedLbl');
+  const lvlLbl=$('lvlLbl');
   function updateHUD(){
+    if(!energyP) return;
     energyP.textContent = Math.floor(state.energyP);
     hpP.textContent = Math.floor(state.towers.P.hp) + '/' + state.towers.P.max;
     hpE.textContent = Math.floor(state.towers.E.hp) + '/' + state.towers.E.max;
@@ -865,31 +887,34 @@
     lvlLbl.textContent = '' + state.level;
   }
   function pulseHUD(){
-    energyP.parentElement.animate([{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],{duration:220,easing:'ease-out'});
+    energyP?.parentElement?.animate(
+      [{transform:'scale(1)'},{transform:'scale(1.08)'},{transform:'scale(1)'}],
+      {duration:220,easing:'ease-out'}
+    );
   }
 
-  var overlay=document.getElementById('overlay');
-  var endTitle=document.getElementById('endTitle');
-  var endDesc=document.getElementById('endDesc');
-  function showOverlay(){ overlay.style.display='flex'; }
-  function hideOverlay(){ overlay.style.display='none'; }
+  const overlay=$('overlay');
+  const endTitle=$('endTitle');
+  const endDesc=$('endDesc');
+  function showOverlay(){ if(overlay) overlay.style.display='flex'; }
+  function hideOverlay(){ if(overlay) overlay.style.display='none'; }
   function endMatch(){
     state.paused=true;
-    var victory=(state.towers.E.hp<=0 && state.towers.P.hp>0);
-    endTitle.textContent = victory? 'VITTORIA ✨' : 'SCONFITTA 💥';
-    endDesc.textContent = victory ? ('Hai abbattuto la torre nemica al livello ' + state.level + '.') : ('La tua torre è stata distrutta al livello ' + state.level + '.');
+    const victory=(state.towers.E.hp<=0 && state.towers.P.hp>0);
+    if(endTitle) endTitle.textContent = victory? 'VITTORIA ✨' : 'SCONFITTA 💥';
+    if(endDesc) endDesc.textContent = victory ? ('Hai abbattuto la torre nemica al livello ' + state.level + '.') : ('La tua torre è stata distrutta al livello ' + state.level + '.');
     showOverlay();
   }
 
   /* ===== Anteprima incantesimi (puntamento) ===== */
   function drawTargetPreview(){
     if(!state.targeting || state.aimX==null) return;
-    var y = groundY();
-    var spell = state.targeting.spell;
-    var r = (spell==='fire') ? Math.floor(Unit.types.Wizard.range*2/3) : Unit.types.Wizard.range;
+    const y = groundY();
+    const spell = state.targeting.spell;
+    const r = (spell==='fire') ? Math.floor(Unit.types.Wizard.range*2/3) : Unit.types.Wizard.range;
 
     ctx.save(); ctx.globalCompositeOperation='screen';
-    var stroke, fill;
+    let stroke, fill;
     if(spell==='lightning'){ stroke='rgba(150,220,255,.95)'; fill='rgba(90,160,255,.08)'; }
     else if(spell==='fire'){ stroke='rgba(255,160,60,.95)'; fill='rgba(255,120,40,.10)'; }
     else { stroke='rgba(150,210,255,.95)'; fill='rgba(120,190,255,.10)'; }
@@ -901,21 +926,21 @@
 
   /* ===== Sfondo/Torri ===== */
   function drawBackground(){
-    var w=canvas.width, h=canvas.height, ground=groundY();
+    const w=canvas.width, h=canvas.height, ground=groundY();
     ctx.clearRect(0,0,w,h);
-    if(bgReady){
-      var sw=bgImg.width, sh=bgImg.height, scale=Math.max(w/sw, ground/sh), dw=sw*scale, dh=sh*scale, dx=(w-dw)/2, dy=ground-dh;
-      ctx.save(); ctx.beginPath(); ctx.rect(0,0,w,ground); ctx.clip(); ctx.drawImage(bgImg, dx, dy, dw, dh); ctx.restore();
+    if(bg.ok()){
+      const sw=bg.img.width, sh=bg.img.height, scale=Math.max(w/sw, ground/sh), dw=sw*scale, dh=sh*scale, dx=(w-dw)/2, dy=ground-dh;
+      ctx.save(); ctx.beginPath(); ctx.rect(0,0,w,ground); ctx.clip(); ctx.drawImage(bg.img, dx, dy, dw, dh); ctx.restore();
     }
     ctx.fillStyle='#0a1224'; ctx.fillRect(0, ground, w, h-ground);
     ctx.save(); ctx.globalCompositeOperation='lighter';
     ctx.strokeStyle='rgba(57,232,255,0.55)'; ctx.lineWidth=4; ctx.beginPath(); ctx.moveTo(40,ground); ctx.lineTo(w-40,ground); ctx.stroke(); ctx.restore();
   }
   function drawTower(t, side){
-    var x=t.x, baseY=t.y, h=t.h, img=(side==='P')? tImgP:tImgE, ready=(side==='P')? tReadyP:tReadyE;
-    if(ready){
-      var scale = h / img.height, dw = img.width*scale, dh=h, dx=x-dw/2, dy=baseY-dh;
-      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(img, dx, dy, dw, dh); ctx.restore();
+    const x=t.x, baseY=t.y, h=t.h; const pack = (side==='P')? tP : tE;
+    if(pack.ok()){
+      const scale = h / pack.img.height, dw = pack.img.width*scale, dh=h, dx=x-dw/2, dy=baseY-dh;
+      ctx.save(); ctx.imageSmoothingEnabled=true; ctx.drawImage(pack.img, dx, dy, dw, dh); ctx.restore();
     } else {
       ctx.save(); ctx.globalCompositeOperation='screen';
       ctx.shadowBlur=20; ctx.shadowColor=(side==='P')? '#7af0ff':'#ff9bc0';
@@ -927,8 +952,8 @@
 
   /* ===== Loop ===== */
   function tick(now){
-    var raw=(now-state.last)/1000; state.last=now;
-    var dt=clamp(raw,0,1/15) * (state.paused?0:state.speed);
+    const raw=(now-state.last)/1000; state.last=now;
+    const dt=clamp(raw,0,1/15) * (state.paused?0:state.speed);
     state.dt=dt; state.time+=dt;
 
     // Flusso energia (senza decrescita)
@@ -939,21 +964,21 @@
     state.ai.timer -= dt;
     while(state.ai.timer<=0){ spawnEnemy(); state.ai.timer += state.ai.cadence; }
 
-    for(var i=0;i<state.entities.length;i++){ state.entities[i].update(dt); }
-    state.entities = state.entities.filter(function(u){ return u.hp>0; });
+    for(let i=0;i<state.entities.length;i++){ state.entities[i].update(dt); }
+    state.entities = state.entities.filter(u=>u.hp>0);
 
-    for(var j=0;j<state.projectiles.length;j++){ state.projectiles[j].update(dt); }
-    state.projectiles = state.projectiles.filter(function(p){ return !p.dead; });
+    for(let j=0;j<state.projectiles.length;j++){ state.projectiles[j].update(dt); }
+    state.projectiles = state.projectiles.filter(p=>!p.dead);
 
-    for(j=0;j<state.effects.length;j++){ state.effects[j].update(dt); }
-    state.effects = state.effects.filter(function(e){ return e.t < e.dur; });
+    for(let j=0;j<state.effects.length;j++){ state.effects[j].update(dt); }
+    state.effects = state.effects.filter(e=> e.t < e.dur );
 
     drawBackground();
     drawTower(state.towers.P,'P'); drawTower(state.towers.E,'E');
     layoutMines(); drawMines();
-    for(j=0;j<state.projectiles.length;j++){ state.projectiles[j].draw(); }
-    for(i=0;i<state.entities.length;i++){ state.entities[i].draw(); }
-    for(j=0;j<state.effects.length;j++){ state.effects[j].draw(); }
+    for(let j=0;j<state.projectiles.length;j++){ state.projectiles[j].draw(); }
+    for(let i=0;i<state.entities.length;i++){ state.entities[i].draw(); }
+    for(let j=0;j<state.effects.length;j++){ state.effects[j].draw(); }
     drawTargetPreview();
 
     updateHUD();
@@ -962,24 +987,24 @@
 
   /* ===== UI ===== */
   function updateSpawnButtons(){
-    document.getElementById('spawnWarrior').textContent     = `🗡️ Guerriero (${currentUnitCost('Warrior')})`;
-    document.getElementById('spawnCrossbow').textContent    = `🏹 Balestriere (${currentUnitCost('Crossbow')})`;
-    document.getElementById('spawnGolem').textContent       = `🗿 Golem (${currentUnitCost('Golem')})`;
-    document.getElementById('spawnWizard').textContent      = `🧙‍♂️ Mago (${currentUnitCost('Wizard')})`;
-    document.getElementById('spawnBabyWizard').textContent  = `🧙‍♂️✨ Baby Mago Blu (${currentUnitCost('BabyWizard')})`;
+    label('spawnWarrior', `🗡️ Guerriero (${currentUnitCost('Warrior')})`, `🗡️ ${currentUnitCost('Warrior')}`);
+    label('spawnCrossbow', `🏹 Balestriere (${currentUnitCost('Crossbow')})`, `🏹 ${currentUnitCost('Crossbow')}`);
+    label('spawnGolem', `🗿 Golem (${currentUnitCost('Golem')})`, `🗿 ${currentUnitCost('Golem')}`);
+    label('spawnWizard', `🧙‍♂️ Mago (${currentUnitCost('Wizard')})`, `🧙 ${currentUnitCost('Wizard')}`);
+    label('spawnBabyWizard', `🧙‍♂️✨ Baby Mago Blu (${currentUnitCost('BabyWizard')})`, `✨ ${currentUnitCost('BabyWizard')}`);
   }
-  document.getElementById('spawnWarrior').addEventListener('click', function(){ spawnPlayer('Warrior'); });
-  document.getElementById('spawnCrossbow').addEventListener('click', function(){ spawnPlayer('Crossbow'); });
-  document.getElementById('spawnGolem').addEventListener('click', function(){ spawnPlayer('Golem'); });
-  document.getElementById('spawnWizard').addEventListener('click', function(){ spawnPlayer('Wizard'); });
-  document.getElementById('spawnBabyWizard').addEventListener('click', function(){ spawnPlayer('BabyWizard'); });
+  on($('spawnWarrior'),'click',()=>spawnPlayer('Warrior'));
+  on($('spawnCrossbow'),'click',()=>spawnPlayer('Crossbow'));
+  on($('spawnGolem'),'click',()=>spawnPlayer('Golem'));
+  on($('spawnWizard'),'click',()=>spawnPlayer('Wizard'));
+  on($('spawnBabyWizard'),'click',()=>spawnPlayer('BabyWizard'));
 
-  var barEl  = document.getElementById('bar');
+  const barEl  = $('bar');
 
-  /* ===== Menu Potenziamenti (UNITÀ + GLOBALI + INCANTESIMI) ===== */
-  var upMenu = document.getElementById('upMenu');
+  /* ===== Menu Potenziamenti ===== */
+  const upMenu = $('upMenu');
 
-  function nextCost(type){ var info=UP[type], lvl=state.unitUp[type].lvl; return Math.floor(info.base*Math.pow(info.step,lvl)); }
+  function nextCost(type){ const info=UP[type], lvl=state.unitUp[type].lvl; return Math.floor(info.base*Math.pow(info.step,lvl)); }
   function globalCost(which){
     const base = (which==='dmg') ? 150 : 200;
     const step = (which==='dmg') ? 1.25 : 1.28;
@@ -987,7 +1012,7 @@
     return Math.floor(base * Math.pow(step, t));
   }
   function spellNextCost(key){
-    var info=SPELL_UP[key], lvl=state.spells[key].lvl;
+    const info=SPELL_UP[key], lvl=state.spells[key].lvl;
     return Math.floor(info.base*Math.pow(info.step,lvl));
   }
   function currentDamage(type){
@@ -1000,18 +1025,20 @@
   }
 
   function openMenuAt(menu, anchorBtn){
-    var r = anchorBtn.getBoundingClientRect();
-    var parentR = barEl.getBoundingClientRect();
+    if(!menu || !barEl || !anchorBtn) return;
+    const r = anchorBtn.getBoundingClientRect();
+    const parentR = barEl.getBoundingClientRect();
     menu.style.left = (r.left - parentR.left) + 'px';
     menu.style.top  = (r.bottom - parentR.top + 6) + 'px';
     menu.style.display='block';
     menu.setAttribute('aria-hidden','false');
   }
-  function closeMenuEl(menu){ menu.style.display='none'; menu.setAttribute('aria-hidden','true'); }
-  function toggleMenuAt(menu, anchorBtn){ (menu.style.display==='block')? closeMenuEl(menu): openMenuAt(menu,anchorBtn); }
+  function closeMenuEl(menu){ if(!menu) return; menu.style.display='none'; menu.setAttribute('aria-hidden','true'); }
+  function toggleMenuAt(menu, anchorBtn){ (menu && menu.style.display==='block')? closeMenuEl(menu): openMenuAt(menu,anchorBtn); }
 
   function renderUpMenu(){
-    var html = '';
+    if(!upMenu) return;
+    let html = '';
 
     function unitRow(key, label){
       const u = state.unitUp[key];
@@ -1065,26 +1092,26 @@
     upMenu.innerHTML = html;
 
     // bind unit
-    upMenu.querySelectorAll('[data-unit]').forEach(function(btn){
+    upMenu.querySelectorAll('[data-unit]').forEach(btn=>{
       const key = btn.getAttribute('data-unit');
-      btn.onclick = function(e){ e.stopPropagation(); upgradeUnit(key); };
+      btn.onclick = (e)=>{ e.stopPropagation(); upgradeUnit(key); };
     });
     // bind spell
-    upMenu.querySelectorAll('[data-spell]').forEach(function(btn){
+    upMenu.querySelectorAll('[data-spell]').forEach(btn=>{
       const key = btn.getAttribute('data-spell');
-      btn.onclick = function(e){ e.stopPropagation(); upgradeSpell(key); };
+      btn.onclick = (e)=>{ e.stopPropagation(); upgradeSpell(key); };
     });
 
     // bind globali
-    var bD = upMenu.querySelector('#upDmg');
-    var bI = upMenu.querySelector('#upInc');
-    if(bD) bD.onclick = function(e){
+    const bD = upMenu.querySelector('#upDmg');
+    const bI = upMenu.querySelector('#upInc');
+    if(bD) bD.onclick = (e)=>{
       e.stopPropagation();
       const cost = globalCost('dmg'); if(!canAfford(cost)) return;
       spend(cost); state.dmgMulP = +(state.dmgMulP + 0.01).toFixed(6);
       state.globalUp.dmg++; flashBanner('Danno Globale +1%'); renderUpMenu(); updateHUD();
     };
-    if(bI) bI.onclick = function(e){
+    if(bI) bI.onclick = (e)=>{
       e.stopPropagation();
       const cost = globalCost('inc'); if(!canAfford(cost)) return;
       spend(cost); state.incomeMulP = +(state.incomeMulP + 0.01).toFixed(6);
@@ -1093,9 +1120,9 @@
   }
 
   function upgradeUnit(type){
-    var obj=state.unitUp[type];
+    const obj=state.unitUp[type];
     if(obj.lvl>=MAX_UNIT_LVL){ flashBanner('Livello massimo raggiunto'); return; }
-    var cost=nextCost(type); if(!canAfford(cost)) return;
+    const cost=nextCost(type); if(!canAfford(cost)) return;
     spend(cost);
     obj.lvl += 1;
     obj.dmg = +(obj.dmg * (1+UP[type].bonusD)).toFixed(6);
@@ -1115,15 +1142,13 @@
     renderUpMenu(); updateSpellLabels(); updateHUD();
   }
 
-  // pulsante menu potenziamenti
-  var btnUpgrades = document.getElementById('btnUpgrades');
-  btnUpgrades.addEventListener('click', function(e){ e.stopPropagation(); renderUpMenu(); toggleMenuAt(upMenu,this); });
+  on($('btnUpgrades'),'click', (e)=>{ e.stopPropagation(); renderUpMenu(); toggleMenuAt(upMenu,$('btnUpgrades')); });
 
   /* ===== Incantesimi: menu uso ===== */
-  var spMenu = document.getElementById('spellMenu');
+  const spMenu = $('spellMenu');
 
   function ensureSpellMenu(){
-    if(spMenu.dataset.ready==='1') return;
+    if(!spMenu || spMenu.dataset.ready==='1') return;
     spMenu.dataset.ready='1';
     function make(id){
       const b=document.createElement('button');
@@ -1133,68 +1158,72 @@
     }
     make('spLightning'); make('spFire'); make('spSlow');
 
-    document.getElementById('spLightning').onclick=function(e){
+    const bL=$('spLightning'), bF=$('spFire'), bS=$('spSlow');
+    on(bL,'click', (e)=>{
       e.stopPropagation(); closeMenuEl(spMenu);
       if(state.level < state.spells.lightning.unlockLvl) return;
-      var cost = currentSpellCost('lightning'); if(!canAfford(cost)) return;
+      const cost = currentSpellCost('lightning'); if(!canAfford(cost)) return;
       spend(cost); state.targeting = { spell:'lightning', cost:cost };
       state.aimX = null; canvas.classList.add('aim'); flashBanner('⚡ Fulmine pronto — tocca un punto'); updateHUD();
-    };
-    document.getElementById('spFire').onclick=function(e){
+    });
+    on(bF,'click', (e)=>{
       e.stopPropagation(); closeMenuEl(spMenu);
       if(state.level < state.spells.fire.unlockLvl) return;
-      var cost = currentSpellCost('fire'); if(!canAfford(cost)) return;
+      const cost = currentSpellCost('fire'); if(!canAfford(cost)) return;
       spend(cost); state.targeting = { spell:'fire', cost:cost };
       state.aimX = null; canvas.classList.add('aim'); flashBanner('🔥 Fuoco pronto — tocca un punto'); updateHUD();
-    };
-    document.getElementById('spSlow').onclick=function(e){
+    });
+    on(bS,'click', (e)=>{
       e.stopPropagation(); closeMenuEl(spMenu);
       if(state.level < state.spells.slow.unlockLvl) return;
-      var cost = currentSpellCost('slow'); if(!canAfford(cost)) return;
+      const cost = currentSpellCost('slow'); if(!canAfford(cost)) return;
       spend(cost); state.targeting = { spell:'slow', cost:cost };
       state.aimX = null; canvas.classList.add('aim'); flashBanner('🧊 Gelo pronto — tocca un punto'); updateHUD();
-    };
+    });
   }
 
   function updateSpellLabels(){
     ensureSpellMenu();
-
-    const b = document.getElementById('spLightning');
+    const b = $('spLightning');
     const unlock2 = state.level >= state.spells.lightning.unlockLvl;
-    b.setAttribute('aria-disabled', unlock2 ? 'false' : 'true');
-    b.querySelector('.label').textContent = (unlock2 ? '⚡ Fulmine' : '⚡ Fulmine — L2') + ` • (${currentSpellCost('lightning')})`;
-    b.querySelector('.sub').textContent = `Danno ${Math.round(state.spells.lightning.dmg * state.spells.lightning.mul)} • Area = range Mago`;
+    if(b){
+      b.setAttribute('aria-disabled', unlock2 ? 'false' : 'true');
+      b.querySelector('.label').textContent = (unlock2 ? '⚡ Fulmine' : '⚡ Fulmine — L2') + ` • (${currentSpellCost('lightning')})`;
+      b.querySelector('.sub').textContent = `Danno ${Math.round(state.spells.lightning.dmg * state.spells.lightning.mul)} • Area = range Mago`;
+    }
 
-    const f = document.getElementById('spFire');
+    const f = $('spFire');
     const unlock4 = state.level >= state.spells.fire.unlockLvl;
-    f.setAttribute('aria-disabled', unlock4 ? 'false' : 'true');
-    f.querySelector('.label').textContent = (unlock4 ? '🔥 Fuoco' : '🔥 Fuoco — L4') + ` • (${currentSpellCost('fire')})`;
-    const fireDps = Math.round(state.spells.fire.dot * state.spells.fire.mul);
-    const fireImp = Math.round(state.spells.fire.impact * state.spells.fire.mul);
-    f.querySelector('.sub').textContent = `Impatto ${fireImp} • AoE 2/3 • Brucia ${fireDps}/s per ${state.spells.fire.dotDur + 2*state.spells.fire.lvl}s`;
+    if(f){
+      f.setAttribute('aria-disabled', unlock4 ? 'false' : 'true');
+      f.querySelector('.label').textContent = (unlock4 ? '🔥 Fuoco' : '🔥 Fuoco — L4') + ` • (${currentSpellCost('fire')})`;
+      const fireDps = Math.round(state.spells.fire.dot * state.spells.fire.mul);
+      const fireImp = Math.round(state.spells.fire.impact * state.spells.fire.mul);
+      f.querySelector('.sub').textContent = `Impatto ${fireImp} • AoE 2/3 • Brucia ${fireDps}/s per ${state.spells.fire.dotDur + 2*state.spells.fire.lvl}s`;
+    }
 
-    const s = document.getElementById('spSlow');
+    const s = $('spSlow');
     const unlock6 = state.level >= state.spells.slow.unlockLvl;
-    s.setAttribute('aria-disabled', unlock6 ? 'false' : 'true');
-    const effFactor = Math.max(0.2, state.spells.slow.factor * Math.pow(0.96, state.spells.slow.lvl));
-    const effDur = state.spells.slow.dur + 2*state.spells.slow.lvl;
-    s.querySelector('.label').textContent = (unlock6 ? '🧊 Gelo' : '🧊 Gelo — L6') + ` • (${currentSpellCost('slow')})`;
-    s.querySelector('.sub').textContent = `Rallenta ×${effFactor.toFixed(2)} per ${effDur}s (area = range Mago)`;
+    if(s){
+      s.setAttribute('aria-disabled', unlock6 ? 'false' : 'true');
+      const effFactor = Math.max(0.2, state.spells.slow.factor * Math.pow(0.96, state.spells.slow.lvl));
+      const effDur = state.spells.slow.dur + 2*state.spells.slow.lvl;
+      s.querySelector('.label').textContent = (unlock6 ? '🧊 Gelo' : '🧊 Gelo — L6') + ` • (${currentSpellCost('slow')})`;
+      s.querySelector('.sub').textContent = `Rallenta ×${effFactor.toFixed(2)} per ${effDur}s (area = range Mago)`;
+    }
   }
-  document.getElementById('btnSpells').addEventListener('click', function(e){
-    e.stopPropagation(); updateSpellLabels(); toggleMenuAt(spMenu,this);
-  });
+  on($('btnSpells'),'click', (e)=>{ e.stopPropagation(); updateSpellLabels(); toggleMenuAt(spMenu,$('btnSpells')); });
 
-  /* ===== Puntamento incantesimi — supporto TOUCH (pointer events) ===== */
+  /* ===== Puntamento incantesimi — TOUCH/pointer ===== */
   function setAimFromEvent(ev){
     const rect = canvas.getBoundingClientRect();
-    state.aimX = clamp((ev.clientX || (ev.touches && ev.touches[0].clientX) || 0) - rect.left, 12, canvas.width-12);
+    state.aimX = clamp((ev.clientX ?? (ev.touches && ev.touches[0]?.clientX) ?? 0) - rect.left, 12, canvas.width-12);
   }
-  canvas.addEventListener('pointermove', function(ev){ if(!state.targeting) return; setAimFromEvent(ev); ev.preventDefault(); }, {passive:false});
-  canvas.addEventListener('pointerdown', function(ev){
+  on(canvas,'pointermove',(ev)=>{ if(!state.targeting) return; setAimFromEvent(ev); ev.preventDefault(); }, {passive:false});
+  on(canvas,'pointerdown',(ev)=>{
     if(!state.targeting) return; ev.preventDefault();
     const rect = canvas.getBoundingClientRect();
-    const x = clamp(ev.clientX - rect.left, 12, canvas.width-12);
+    const x = clamp((ev.clientX ?? 0) - rect.left, 12, canvas.width-12);
     if(state.targeting.spell==='lightning'){
       const dmg = state.spells.lightning.dmg * state.spells.lightning.mul * state.dmgMulP;
       const radius = Unit.types.Wizard.range;
@@ -1212,16 +1241,17 @@
   }, {passive:false});
 
   /* ===== Menu Miniere ===== */
-  var mineMenu = document.getElementById('mineMenu');
+  const mineMenu = $('mineMenu');
   function renderMineMenu(){
-    var html = '';
+    if(!mineMenu) return;
+    let html = '';
     if(state.mines.length===0){
       html += `<div class="item" aria-disabled="true">Nessuna miniera<span class="sub">Usa “⛏️ Miniera (${state.minePlaceCost})” per costruire</span></div>`;
     }else{
-      for(var i=0;i<state.mines.length;i++){
-        var m = state.mines[i];
-        var nextCostTxt = (m.level>=3) ? 'MAX' : state.mineCosts[m.level] + '';
-        var rate = state.mineRates[m.level];
+      for(let i=0;i<state.mines.length;i++){
+        const m = state.mines[i];
+        const nextCostTxt = (m.level>=3) ? 'MAX' : state.mineCosts[m.level] + '';
+        const rate = state.mineRates[m.level];
         html += `<button class="item" data-idx="${i}" ${m.level>=3?'aria-disabled="true"':''}>
           ⛏️ Miniera ${i+1} — Lv${m.level} • ${m.level>=3?'—':('Up '+nextCostTxt)}
           <span class="sub">Rendimento: ${rate}/5s — Pos: ${i+1}/${state.maxMines}</span>
@@ -1229,25 +1259,23 @@
       }
     }
     mineMenu.innerHTML = html;
-    mineMenu.querySelectorAll('button.item').forEach(function(btn){
-      var i = +btn.getAttribute('data-idx');
-      if(!isNaN(i)){ btn.onclick = function(e){ e.stopPropagation(); upgradeMine(i); }; }
+    mineMenu.querySelectorAll('button.item').forEach(btn=>{
+      const i = +btn.getAttribute('data-idx');
+      if(!isNaN(i)){ btn.onclick = (e)=>{ e.stopPropagation(); upgradeMine(i); }; }
     });
   }
-  document.getElementById('btnMines').addEventListener('click', function(e){
-    e.stopPropagation(); renderMineMenu(); toggleMenuAt(mineMenu, this);
-  });
-  document.getElementById('placeMine').addEventListener('click', function(){ addMine(); });
+  on($('btnMines'),'click',(e)=>{ e.stopPropagation(); renderMineMenu(); toggleMenuAt(mineMenu, $('btnMines')); });
+  on($('placeMine'),'click', ()=> addMine());
 
   /* ===== Chiusura menu click fuori ===== */
-  document.addEventListener('click', function(e){
-    if(upMenu.style.display==='block' && !upMenu.contains(e.target) && e.target!==btnUpgrades){ closeMenuEl(upMenu); }
-    if(spMenu.style.display==='block' && !spMenu.contains(e.target) && e.target!==document.getElementById('btnSpells')){ closeMenuEl(spMenu); }
-    if(mineMenu.style.display==='block' && !mineMenu.contains(e.target) && e.target!==document.getElementById('btnMines')){ closeMenuEl(mineMenu); }
+  on(document,'click',(e)=>{
+    if(upMenu?.style.display==='block' && !upMenu.contains(e.target) && e.target!==$('btnUpgrades')){ closeMenuEl(upMenu); }
+    if(spMenu?.style.display==='block' && !spMenu.contains(e.target) && e.target!==$('btnSpells')){ closeMenuEl(spMenu); }
+    if(mineMenu?.style.display==='block' && !mineMenu.contains(e.target) && e.target!==$('btnMines')){ closeMenuEl(mineMenu); }
   });
 
-  /* ===== ESC (su mobile non utile ma manteniamo) ===== */
-  document.addEventListener('keydown', function(e){
+  /* ===== ESC ===== */
+  on(document,'keydown',(e)=>{
     if(e.key==='Escape'){
       closeMenuEl(upMenu); closeMenuEl(spMenu); closeMenuEl(mineMenu);
       if(state.targeting){
@@ -1258,22 +1286,30 @@
     }
   });
 
-  /* ===== Controlli generali (ora fino a 4x) ===== */
-  const spdBtn = document.getElementById('toggleSpeed');
+  /* ===== Controlli generali (fino a 4x) ===== */
+  const spdBtn = $('toggleSpeed');
   function setSpeed(v){
     state.speed = v;
-    spdBtn.textContent = (v===1) ? '⚡ 2x' : (v===2 ? '⚡ 4x' : '⚡ 1x');
+    if(spdBtn) spdBtn.textContent = (v===1) ? '⚡ 2x' : (v===2 ? '⚡ 4x' : '⚡ 1x');
     updateHUD();
   }
-  spdBtn.addEventListener('click', function(){ setSpeed(state.speed===1 ? 2 : (state.speed===2 ? 4 : 1)); });
-  document.getElementById('togglePause').addEventListener('click', function(){ state.paused = !state.paused; });
-  document.getElementById('nextLvl').addEventListener('click', function(){ nextLevel(); });
-  document.getElementById('restartBtn').addEventListener('click', function(){ reset(); });
-  document.getElementById('contBtn').addEventListener('click', function(){ reset(); });
+  on(spdBtn,'click', ()=> setSpeed(state.speed===1 ? 2 : (state.speed===2 ? 4 : 1)) );
+  on($('togglePause'),'click', ()=> state.paused = !state.paused );
+  on($('nextLvl'),'click', ()=> nextLevel() );
+  on($('restartBtn'),'click', ()=> reset() );
+  on($('contBtn'),'click', ()=> reset() );
+
+  /* Pulsanti superiori con etichette compatte */
+  function updateTopButtons(){
+    label('btnUpgrades', '🛠️ Potenziamenti', '🛠️');
+    label('btnSpells', '✨ Incantesimi', '✨');
+    label('btnMines', '📦 Miniere', '📦');
+    label('nextLvl', '▶️ Prossima Ondata', '▶️');
+  }
 
   /* ===== Banner ===== */
   function flashBanner(text){
-    var el=document.createElement('div');
+    const el=document.createElement('div');
     el.textContent=text;
     el.style.position='absolute'; el.style.left='50%'; el.style.top='16%';
     el.style.transform='translate(-50%, -50%)';
@@ -1285,15 +1321,26 @@
     el.style.boxShadow='0 10px 40px rgba(0,0,0,.5)'; el.style.zIndex='10'; el.style.opacity='0.0';
     wrap.appendChild(el);
     el.animate(
-      [{opacity:0, transform:'translate(-50%,-50%) scale(.96)'},
-       {opacity:1, transform:'translate(-50%,-50%) scale(1)'},
-       {opacity:0, transform:'translate(-50%,-50%) scale(1.04)'}],
+      [{opacity:0, transform:'translate(-50,-50) scale(.96)'},
+       {opacity:1, transform:'translate(-50,-50) scale(1)'},
+       {opacity:0, transform:'translate(-50,-50) scale(1.04)'}],
       {duration:1100, easing:'ease'}
-    ).onfinish=function(){ el.remove(); };
+    ).onfinish=()=> el.remove();
   }
 
   /* ===== Avvio ===== */
   resize(); reset(); requestAnimationFrame(tick);
+
+  /* ===== Click su canvas per interrompere puntamento? (opzionale) ===== */
+  on(canvas,'dblclick', ()=> {
+    if(state.targeting){
+      state.energyP += state.targeting.cost;
+      state.targeting=null; state.aimX=null; canvas.classList.remove('aim');
+      flashBanner('Incantesimo annullato • ⚡ rimborsati'); updateHUD();
+    }
+  });
+
+  });
   </script>
 </body>
 </html>
